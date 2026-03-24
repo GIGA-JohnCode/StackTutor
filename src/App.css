@@ -1,42 +1,95 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+.app-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  gap: 12px;
+  min-height: 100vh;
+  padding: 12px;
+  box-sizing: border-box;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.panel {
+  border: 1px solid #d7d8de;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 12px;
+  box-sizing: border-box;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
+.panel-left,
+.panel-right {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.panel-main {
+  overflow: auto;
+}
+
+.panel-action,
+.start-form button,
+.session-item {
+  border: 1px solid #c7cad8;
+  background: #f2f4fb;
+  border-radius: 8px;
+  color: #1c2438;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.session-list,
+.stack-list,
+.feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.session-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.session-item.active {
+  border-color: #5480ff;
+  background: #e9efff;
+}
+
+.stack-item,
+.feed-item {
+  border: 1px solid #e1e3eb;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fafbff;
+}
+
+.start-view {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.start-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 420px;
+}
+
+.start-form input,
+.start-form select {
+  border: 1px solid #c9ccda;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.muted {
+  color: #6b7286;
+}
+
+@media (max-width: 1000px) {
+  .app-layout {
+    grid-template-columns: 1fr;
   }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
 }

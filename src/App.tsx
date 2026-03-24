@@ -1,35 +1,60 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useMemo, useState } from "react";
+import { LeftSidebar } from "./components/LeftSidebar";
+import { MainFeed } from "./components/MainFeed";
+import { RightSidebar } from "./components/RightSidebar";
+import { StartSessionView } from "./components/StartSessionView";
+import type { SessionListItem, TutorSessionSnapshot } from "./core/types/domain";
+import { TutorAppStore } from "./store/TutorAppStore";
+import "./App.css";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const appStore = useMemo(() => new TutorAppStore(), []);
+  const [isStartView, setIsStartView] = useState(true);
+  const [sessions, setSessions] = useState<SessionListItem[]>(() => appStore.getSessionList());
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(() => appStore.getActiveSessionId());
+  const [activeSession, setActiveSession] = useState<TutorSessionSnapshot | null>(() => {
+    const activeId = appStore.getActiveSessionId();
+    return activeId ? appStore.getSessionSnapshotById(activeId) : null;
+  });
+
+  const refreshSessions = () => {
+    setSessions(appStore.getSessionList());
+  };
+
+  const selectSession = (sessionId: string) => {
+    appStore.setActiveSessionId(sessionId);
+    setActiveSessionId(sessionId);
+    setActiveSession(appStore.getSessionSnapshotById(sessionId));
+    setIsStartView(false);
+  };
+
+  const startSession = (topic: string, maxDepth: number) => {
+    const engine = appStore.createEngineForNewSession(topic, maxDepth);
+    const snapshot = engine.getSessionSnapshot();
+    setActiveSessionId(snapshot.id);
+    setActiveSession(snapshot);
+    setIsStartView(false);
+    refreshSessions();
+  };
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <div className="app-layout">
+      <LeftSidebar
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onSelectSession={selectSession}
+        onNewSession={() => setIsStartView(true)}
+      />
+
+      {isStartView ? (
+        <StartSessionView onStartSession={startSession} />
+      ) : (
+        <MainFeed session={activeSession} />
+      )}
+
+      <RightSidebar stack={activeSession?.stack ?? []} />
+    </div>
+  );
 }
 
-export default App
+export default App;
