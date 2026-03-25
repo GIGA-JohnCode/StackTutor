@@ -67,11 +67,6 @@ export interface TutorSessionSnapshot {
   feed: TutorMessage[];
 }
 
-export interface PrerequisiteCandidate {
-  topic: string;
-  rationale?: string;
-}
-
 export interface SessionListItem {
   id: string;
   title: string;

@@ -1,5 +1,5 @@
 import type { LLMClient } from "./LLMClient";
-import type { PrerequisiteCandidate, StepItem, TutorMessage } from "../types/domain";
+import type { StepItem, TopicItem, TutorMessage } from "../types/domain";
 import type { ModelProvider } from "../providers/ModelProvider";
 
 // LLM layer implementation.
@@ -16,7 +16,7 @@ export class LangChainLLMClient implements LLMClient {
     maxItems: number;
     depth: number;
     knownTopicsContext: string;
-  }): Promise<PrerequisiteCandidate[]> {
+  }): Promise<TopicItem[]> {
     const model = this.provider.getModel("prerequisite");
     void _input;
     void model;

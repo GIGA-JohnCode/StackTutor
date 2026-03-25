@@ -1,4 +1,4 @@
-import type { PrerequisiteCandidate, StackItem } from "./types/domain";
+import type { StackItem, TopicItem } from "./types/domain";
 
 // Encapsulates all stack operations so UI cannot mutate stack structure directly.
 export class StackManager {
@@ -29,19 +29,16 @@ export class StackManager {
   }
 
   // Inserts accepted prerequisites above the selected parent topic.
-  pushPrerequisitesAbove(parentTopicId: string, prerequisites: PrerequisiteCandidate[]): void {
+  pushPrerequisitesAbove(parentTopicId: string, prerequisites: TopicItem[]): void {
     const parentIndex = this.stack.findIndex((item) => item.id === parentTopicId);
     if (parentIndex < 0) {
       throw new Error("Parent topic not found in stack");
     }
 
     const parent = this.stack[parentIndex];
-    const mapped: StackItem[] = prerequisites.map((candidate, idx) => ({
-      id: `${parentTopicId}:prereq:${idx}:${candidate.topic.toLowerCase()}`,
-      topic: {
-        name: candidate.topic,
-        proficiency: "beginner",
-      },
+    const mapped: StackItem[] = prerequisites.map((topic, idx) => ({
+      id: `${parentTopicId}:prereq:${idx}:${topic.name.toLowerCase()}`,
+      topic,
       depth: parent.depth + 1,
       prerequisitesSearched: false,
       steps: [],

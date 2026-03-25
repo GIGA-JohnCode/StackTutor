@@ -3,7 +3,7 @@ import { StackManager } from "./StackManager";
 import { KnowledgeStore } from "./knowledge/KnowledgeStore";
 import type { KnowledgeValidator } from "./knowledge/KnowledgeValidator";
 import type { LLMClient } from "./llm/LLMClient";
-import type { PrerequisiteCandidate, StackItem, TutorSessionSnapshot } from "./types/domain";
+import type { StackItem, TopicItem, TutorSessionSnapshot } from "./types/domain";
 
 // Deterministic orchestration engine for the tutor workflow.
 // This is the heart of business logic and should remain UI-framework agnostic.
@@ -46,7 +46,7 @@ export class TutorEngine {
     return this.session.getSnapshot();
   }
 
-  async expandTopIfNeeded(maxPrereqs = 5): Promise<PrerequisiteCandidate[]> {
+  async expandTopIfNeeded(maxPrereqs = 5): Promise<TopicItem[]> {
     const stackManager = new StackManager(this.session.getSnapshot().stack);
     const top = stackManager.peekTop();
 
@@ -66,7 +66,7 @@ export class TutorEngine {
       knownTopicsContext: this.knowledgeStore.toLLMContext(),
     });
 
-    const validated = this.validator.validatePrerequisites(generated, this.knowledgeStore.getAll());
+    const validated = this.validator.validatePrerequisites(generated);
 
     top.prerequisitesSearched = true;
     this.session.setStack(stackManager.getStack());
@@ -74,7 +74,7 @@ export class TutorEngine {
     return validated;
   }
 
-  applyAcceptedPrerequisites(parentTopicId: string, accepted: PrerequisiteCandidate[]): void {
+  applyAcceptedPrerequisites(parentTopicId: string, accepted: TopicItem[]): void {
     const stackManager = new StackManager(this.session.getSnapshot().stack);
     stackManager.pushPrerequisitesAbove(parentTopicId, accepted);
     this.session.setStack(stackManager.getStack());

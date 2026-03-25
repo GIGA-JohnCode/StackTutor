@@ -1,4 +1,4 @@
-import type { PrerequisiteCandidate, StepItem, TutorMessage } from "../types/domain";
+import type { StepItem, TopicItem, TutorMessage } from "../types/domain";
 
 // Tutor-operation contract used by the engine.
 // Implementations may use LangChain and any registered model provider internally.
@@ -8,7 +8,7 @@ export interface LLMClient {
     maxItems: number;
     depth: number;
     knownTopicsContext: string;
-  }): Promise<PrerequisiteCandidate[]>;
+  }): Promise<TopicItem[]>;
 
   decomposeTopic(input: {
     topic: string;
