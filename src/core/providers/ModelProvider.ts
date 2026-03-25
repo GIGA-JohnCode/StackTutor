@@ -9,6 +9,11 @@ export type ModelTask =
   | "teach"
   | "summarize";
 
+export interface ProviderConfig {
+  apiKey?: string;
+  modelName?: string;
+}
+
 // Keep this broad until a concrete LangChain model package is wired in.
 export type ChatModelLike = unknown;
 

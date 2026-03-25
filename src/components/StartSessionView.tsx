@@ -20,19 +20,21 @@ export function StartSessionView(props: StartSessionViewProps) {
   };
 
   return (
-    <section className="panel panel-main start-view">
-      <h1>Start New Session</h1>
-      <form onSubmit={onSubmit} className="start-form">
-        <label htmlFor="topic-input">What do you want to learn?</label>
+    <section className="flex flex-col justify-center gap-2">
+      <h1 className="text-xl font-semibold">Start New Session</h1>
+      <form onSubmit={onSubmit} className="flex max-w-105 flex-col gap-2">
+        <label className="text-sm text-slate-700" htmlFor="topic-input">What do you want to learn?</label>
         <input
+          className="rounded-lg border border-slate-300 px-2 py-2 text-slate-900"
           id="topic-input"
           value={topic}
           onChange={(event) => setTopic(event.target.value)}
           placeholder="e.g. Dynamic Programming"
         />
 
-        <label htmlFor="depth-input">Max prerequisite depth</label>
+        <label className="text-sm text-slate-700" htmlFor="depth-input">Max prerequisite depth</label>
         <select
+          className="rounded-lg border border-slate-300 px-2 py-2 text-slate-900"
           id="depth-input"
           value={maxDepth}
           onChange={(event) => setMaxDepth(Number(event.target.value))}
@@ -42,7 +44,12 @@ export function StartSessionView(props: StartSessionViewProps) {
           <option value={3}>3</option>
         </select>
 
-        <button type="submit">Start Session</button>
+        <button
+          className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-left text-slate-900"
+          type="submit"
+        >
+          Start Session
+        </button>
       </form>
     </section>
   );

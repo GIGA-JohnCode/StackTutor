@@ -1,9 +1,11 @@
 import { registerProvider } from "./ProviderFactory";
-import type { ChatModelLike, ModelProvider, ModelTask } from "./ModelProvider";
+import type { ChatModelLike, ModelProvider, ModelTask, ProviderConfig } from "./ModelProvider";
 
 // Provider only resolves model selection and initialization.
 // Operation logic belongs to src/core/llm.
 export class GroqProvider implements ModelProvider {
+  private config: ProviderConfig;
+
   private readonly modelByTask: Record<ModelTask, string> = {
     default: "llama-3.3-70b-versatile",
     chat: "llama-3.3-70b-versatile",
@@ -13,9 +15,13 @@ export class GroqProvider implements ModelProvider {
     summarize: "llama-3.1-8b-instant",
   };
 
+  constructor(config?: ProviderConfig) {
+    this.config = config ?? {};
+  }
+
   getModel(task: ModelTask = "default"): ChatModelLike {
     const resolvedTask = this.modelByTask[task] ? task : "default";
-    const modelName = this.modelByTask[resolvedTask];
+    const modelName = this.config.modelName ?? this.modelByTask[resolvedTask];
 
     // TODO: Replace this placeholder with actual LangChain ChatGroq initialization.
     // Example target shape once dependencies are wired:
@@ -23,6 +29,8 @@ export class GroqProvider implements ModelProvider {
     return {
       provider: "groq",
       model: modelName,
+      apiKey: this.config.apiKey,
+      hasApiKey: Boolean(this.config.apiKey?.trim()),
     };
   }
 }

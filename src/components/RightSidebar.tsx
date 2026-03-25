@@ -4,25 +4,55 @@ import type { StackItem } from "../core/types/domain";
 // Must support reorder and remove actions initiated by the user.
 interface RightSidebarProps {
   stack: StackItem[];
+  onRemoveItem?: (itemId: string) => void;
+  onMoveItem?: (fromIndex: number, toIndex: number) => void;
 }
 
 export function RightSidebar(props: RightSidebarProps) {
-  const { stack } = props;
+  const { stack, onRemoveItem, onMoveItem } = props;
+
+  const reversedStack = stack.slice().reverse();
 
   return (
-    <aside className="panel panel-right">
-      <h2>Stack</h2>
-      <div className="stack-list">
+    <aside className="flex min-h-0 flex-col gap-2.5 rounded-xl border border-slate-200 bg-white p-3">
+      <h2 className="text-lg font-semibold">Stack</h2>
+      <div className="flex flex-col gap-2">
         {stack.length === 0 ? (
-          <p className="muted">No items in stack.</p>
+          <p className="text-sm text-slate-500">No items in stack.</p>
         ) : (
-          stack
-            .slice()
-            .reverse()
-            .map((item) => (
-              <div key={item.id} className="stack-item">
-                <div>{item.topic.name}</div>
-                <small>Depth {item.depth}</small>
+          reversedStack.map((item, index) => (
+              <div key={item.id} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                <div className="flex justify-between gap-2">
+                  <div>
+                    <div>{item.topic.name}</div>
+                    <small className="text-xs text-slate-600">Depth {item.depth}</small>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                      type="button"
+                      onClick={() => onMoveItem?.(index, index + 1)}
+                      disabled={index >= reversedStack.length - 1}
+                    >
+                      Down
+                    </button>
+                    <button
+                      className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                      type="button"
+                      onClick={() => onMoveItem?.(index, index - 1)}
+                      disabled={index <= 0}
+                    >
+                      Up
+                    </button>
+                    <button
+                      className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-900"
+                      type="button"
+                      onClick={() => onRemoveItem?.(item.id)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
               </div>
             ))
         )}

@@ -8,6 +8,7 @@ import { TutorEngine } from "../core/TutorEngine";
 import { LocalKnowledgeRepository } from "../core/persistence/LocalKnowledgeRepository";
 import { LocalSessionRepository } from "../core/persistence/LocalSessionRepository";
 import { LocalSettingsRepository } from "../core/persistence/LocalSettingsRepository";
+import type { AppSettings } from "../core/persistence/SettingsRepository";
 import type { SessionListItem, TutorSessionSnapshot } from "../core/types/domain";
 
 // App-level state facade that wires UI events to domain engine operations.
@@ -41,9 +42,29 @@ export class TutorAppStore {
     this.sessionRepository.remove(sessionId);
   }
 
+  getSettings(): AppSettings {
+    return this.settingsRepository.get();
+  }
+
+  saveSettings(settings: AppSettings): void {
+    this.settingsRepository.save(settings);
+  }
+
+  isByokConfigured(): boolean {
+    const settings = this.settingsRepository.get();
+    return Boolean(settings.apiKey?.trim());
+  }
+
   createEngineForNewSession(topic: string, maxDepth: number): TutorEngine {
     const settings = this.settingsRepository.get();
-    const provider = ProviderFactory.getProvider(settings.providerName);
+    if (!settings.apiKey?.trim()) {
+      throw new Error("Set your Groq API key in BYOK settings before starting a session.");
+    }
+
+    const provider = ProviderFactory.getProvider(settings.providerName, {
+      apiKey: settings.apiKey,
+      modelName: settings.modelName,
+    });
     const llmClient = new LangChainLLMClient(provider);
 
     const session = TutorSession.createNew(
@@ -73,7 +94,10 @@ export class TutorAppStore {
     }
 
     const settings = this.settingsRepository.get();
-    const provider = ProviderFactory.getProvider(settings.providerName);
+    const provider = ProviderFactory.getProvider(settings.providerName, {
+      apiKey: settings.apiKey,
+      modelName: settings.modelName,
+    });
     const llmClient = new LangChainLLMClient(provider);
     const session = TutorSession.fromSnapshot(snapshot);
 

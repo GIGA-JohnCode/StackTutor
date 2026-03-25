@@ -1,7 +1,7 @@
-import type { ModelProvider } from "./ModelProvider";
+import type { ModelProvider, ProviderConfig } from "./ModelProvider";
 
 // Runtime registry that mirrors your Python decorator-based auto-registration pattern.
-type ProviderCtor = new () => ModelProvider;
+type ProviderCtor = new (config?: ProviderConfig) => ModelProvider;
 
 const providers = new Map<string, ProviderCtor>();
 
@@ -12,12 +12,12 @@ export function registerProvider(name: string) {
 }
 
 export class ProviderFactory {
-  static getProvider(name: string): ModelProvider {
+  static getProvider(name: string, config?: ProviderConfig): ModelProvider {
     const ctor = providers.get(name.toLowerCase());
     if (!ctor) {
       throw new Error(`Provider '${name}' is not registered`);
     }
-    return new ctor();
+    return new ctor(config);
   }
 
   static getRegisteredNames(): string[] {
