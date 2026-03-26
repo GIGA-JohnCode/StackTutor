@@ -5,7 +5,7 @@ import { RightSidebar } from "./components/RightSidebar";
 import { StartSessionView } from "./components/StartSessionView";
 import { ByokSettingsPanel } from "./components/ByokSettingsPanel";
 import type { AppSettings } from "./core/persistence/SettingsRepository";
-import type { SessionListItem, TutorSessionSnapshot } from "./core/types/domain";
+import type { SessionListItem, TopicItem, TutorSessionSnapshot } from "./core/types/domain";
 import { TutorAppStore } from "./store/TutorAppStore";
 
 function App() {
@@ -31,9 +31,13 @@ function App() {
     setIsStartView(false);
   };
 
-  const startSession = (topic: string, maxDepth: number) => {
+  const startSession = (
+    topic: string,
+    maxDepth: number,
+    rootProficiency: TopicItem["proficiency"],
+  ) => {
     try {
-      const engine = appStore.createEngineForNewSession(topic, maxDepth);
+      const engine = appStore.createEngineForNewSession(topic, maxDepth, rootProficiency);
       const snapshot = engine.getSessionSnapshot();
       setActiveSessionId(snapshot.id);
       setActiveSession(snapshot);

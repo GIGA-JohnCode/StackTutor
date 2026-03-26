@@ -9,7 +9,7 @@ import { LocalKnowledgeRepository } from "../core/persistence/LocalKnowledgeRepo
 import { LocalSessionRepository } from "../core/persistence/LocalSessionRepository";
 import { LocalSettingsRepository } from "../core/persistence/LocalSettingsRepository";
 import type { AppSettings } from "../core/persistence/SettingsRepository";
-import type { SessionListItem, TutorSessionSnapshot } from "../core/types/domain";
+import type { SessionListItem, TopicItem, TutorSessionSnapshot } from "../core/types/domain";
 
 // App-level state facade that wires UI events to domain engine operations.
 // In later iterations this can be connected to React context, Zustand, or Redux.
@@ -55,7 +55,11 @@ export class TutorAppStore {
     return Boolean(settings.apiKey?.trim());
   }
 
-  createEngineForNewSession(topic: string, maxDepth: number): TutorEngine {
+  createEngineForNewSession(
+    topic: string,
+    maxDepth: number,
+    rootProficiency: TopicItem["proficiency"],
+  ): TutorEngine {
     const settings = this.settingsRepository.get();
     if (!settings.apiKey?.trim()) {
       throw new Error("Set your Groq API key in BYOK settings before starting a session.");
@@ -79,7 +83,7 @@ export class TutorAppStore {
       new PassThroughValidator(),
       this.knowledgeStore,
     );
-    engine.startWithRootTopic(topic);
+    engine.startWithRootTopic(topic, rootProficiency);
 
     this.sessionRepository.upsert(session.getSnapshot());
     this.sessionRepository.setActiveSessionId(session.getSnapshot().id);

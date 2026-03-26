@@ -3,6 +3,7 @@ import { StackManager } from "./StackManager";
 import { KnowledgeStore } from "./knowledge/KnowledgeStore";
 import type { KnowledgeValidator } from "./knowledge/KnowledgeValidator";
 import type { LLMClient } from "./llm/LLMClient";
+import { parsePrerequisites } from "./llm/parsers";
 import type { StackItem, TopicItem, TutorSessionSnapshot } from "./types/domain";
 
 // Deterministic orchestration engine for the tutor workflow.
@@ -25,12 +26,12 @@ export class TutorEngine {
     this.knowledgeStore = knowledgeStore;
   }
 
-  startWithRootTopic(topic: string): void {
+  startWithRootTopic(topic: string, proficiency: TopicItem["proficiency"]): void {
     const root: StackItem = {
       id: `topic:${topic.toLowerCase()}`,
       topic: {
         name: topic,
-        proficiency: "beginner",
+        proficiency,
       },
       depth: 0,
       prerequisitesSearched: false,
@@ -59,11 +60,15 @@ export class TutorEngine {
       return [];
     }
 
-    const generated = await this.llmClient.generatePrerequisites({
-      topic: top.topic.name,
+    const rawOutput = await this.llmClient.generatePrerequisites({
+      topic: top.topic,
       maxItems: maxPrereqs,
-      depth: top.depth,
       knownTopicsContext: this.knowledgeStore.toLLMContext(),
+    });
+
+    const generated = parsePrerequisites(rawOutput, {
+      targetTopic: top.topic.name,
+      maxItems: maxPrereqs,
     });
 
     const validated = this.validator.validatePrerequisites(generated);

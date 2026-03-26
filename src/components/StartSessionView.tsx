@@ -1,14 +1,20 @@
 import { useState } from "react";
+import type { TopicItem } from "../core/types/domain";
 
 // Initial landing view that lets the user define what to learn and max prerequisite depth.
 interface StartSessionViewProps {
-  onStartSession: (topic: string, maxDepth: number) => void;
+  onStartSession: (
+    topic: string,
+    maxDepth: number,
+    rootProficiency: TopicItem["proficiency"],
+  ) => void;
 }
 
 export function StartSessionView(props: StartSessionViewProps) {
   const { onStartSession } = props;
   const [topic, setTopic] = useState("");
   const [maxDepth, setMaxDepth] = useState(2);
+  const [rootProficiency, setRootProficiency] = useState<TopicItem["proficiency"]>("beginner");
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -16,7 +22,7 @@ export function StartSessionView(props: StartSessionViewProps) {
     if (!normalized) {
       return;
     }
-    onStartSession(normalized, maxDepth);
+    onStartSession(normalized, maxDepth, rootProficiency);
   };
 
   return (
@@ -42,6 +48,19 @@ export function StartSessionView(props: StartSessionViewProps) {
           <option value={1}>1</option>
           <option value={2}>2</option>
           <option value={3}>3</option>
+        </select>
+
+        <label className="text-sm text-slate-700" htmlFor="root-proficiency-input">Root topic proficiency</label>
+        <select
+          className="rounded-lg border border-slate-300 px-2 py-2 text-slate-900"
+          id="root-proficiency-input"
+          value={rootProficiency}
+          onChange={(event) => setRootProficiency(event.target.value as TopicItem["proficiency"])}
+        >
+          <option value="beginner">Beginner</option>
+          <option value="intermediate">Intermediate</option>
+          <option value="advanced">Advanced</option>
+          <option value="expert">Expert</option>
         </select>
 
         <button

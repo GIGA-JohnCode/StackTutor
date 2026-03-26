@@ -41,6 +41,7 @@ export interface StackItem {
 
 export interface StepItem {
   id: string;
+  name: string;
   objective: string;
   completed: boolean;
 }
