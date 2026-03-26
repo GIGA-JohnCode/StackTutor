@@ -2,6 +2,7 @@ import type { LLMClient } from "./LLMClient";
 import type { StepItem, TopicItem, TutorMessage } from "../types/domain";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { ModelProvider, ModelTask } from "../providers/ModelProvider";
+import { LLMOutputError } from "./LLMOutputError";
 import {
   DECOMPOSE_SCHEMA,
   PREREQUISITE_SCHEMA,
@@ -14,6 +15,10 @@ import {
 export class LangChainLLMClient implements LLMClient {
   private provider: ModelProvider;
   private modelCache: Partial<Record<ModelTask, BaseChatModel>> = {};
+  private readonly retryAttempts = {
+    structured: 2,
+    teaching: 2,
+  } as const;
 
   constructor(provider: ModelProvider) {
     this.provider = provider;
@@ -47,24 +52,20 @@ export class LangChainLLMClient implements LLMClient {
       name: "prerequisite_list",
     });
 
-    const output = await structuredModel.invoke([
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ]);
-
-    const parsed = output as PrerequisiteOutput;
-    if (!Array.isArray(parsed.prerequisites)) {
-      throw new Error("Prerequisite generation payload is missing 'prerequisites' array");
-    }
-
-    const hasInvalidItem = parsed.prerequisites.some((item) => {
-      return typeof item?.name !== "string" || typeof item?.proficiency !== "string";
+    return this.invokeWithRetry<PrerequisiteOutput>({
+      attemptBudget: this.retryAttempts.structured,
+      execute: (attempt) => structuredModel.invoke([
+        {
+          role: "system",
+          content: attempt === 1
+            ? systemPrompt
+            : `${systemPrompt}\nYour previous response did not match the schema. Return only valid JSON with required fields.`,
+        },
+        { role: "user", content: userPrompt },
+      ]),
+      validate: (value) => (this.isPrerequisiteOutput(value) ? value : null),
+      failureMessage: "Malformed prerequisite output after retry budget exhausted",
     });
-    if (hasInvalidItem) {
-      throw new Error("Prerequisite generation payload contains invalid prerequisite items");
-    }
-
-    return parsed;
   }
 
   async decomposeTopic(input: {
@@ -96,17 +97,20 @@ export class LangChainLLMClient implements LLMClient {
       name: "topic_decomposition",
     });
 
-    const output = await structuredModel.invoke([
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ]);
-
-    const parsed = output as DecomposeOutput;
-    if (!Array.isArray(parsed.steps)) {
-      throw new Error("Decompose topic payload is missing 'steps' array");
-    }
-
-    return parsed;
+    return this.invokeWithRetry<DecomposeOutput>({
+      attemptBudget: this.retryAttempts.structured,
+      execute: (attempt) => structuredModel.invoke([
+        {
+          role: "system",
+          content: attempt === 1
+            ? systemPrompt
+            : `${systemPrompt}\nYour previous response did not match the schema. Return only valid JSON with required fields.`,
+        },
+        { role: "user", content: userPrompt },
+      ]),
+      validate: (value) => (this.isDecomposeOutput(value) ? value : null),
+      failureMessage: "Malformed decompose output after retry budget exhausted",
+    });
   }
 
   async completeStep(input: {
@@ -144,17 +148,23 @@ export class LangChainLLMClient implements LLMClient {
       recentHistory,
     ].join("\n\n");
 
-    const response = await model.invoke([
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ]);
-
-    const content = this.extractModelText(response);
-    if (!content) {
-      throw new Error("Teaching response was empty");
-    }
-
-    return content;
+    return this.invokeWithRetry<string>({
+      attemptBudget: this.retryAttempts.teaching,
+      execute: (attempt) => model.invoke([
+        {
+          role: "system",
+          content: attempt === 1
+            ? systemPrompt
+            : `${systemPrompt}\nYour previous response was empty. Return a concise teaching response now.`,
+        },
+        { role: "user", content: userPrompt },
+      ]),
+      validate: (value) => {
+        const content = this.extractModelText(value);
+        return content ? content : null;
+      },
+      failureMessage: "Teaching response was empty after retry budget exhausted",
+    });
   }
 
   private getTaskModel(task: ModelTask): BaseChatModel {
@@ -182,8 +192,62 @@ export class LangChainLLMClient implements LLMClient {
     return Math.min(Math.max(Math.trunc(stepCountHint ?? 0), 2), 12);
   }
 
+  private async invokeWithRetry<T>(input: {
+    attemptBudget: number;
+    execute: (attempt: number) => Promise<unknown>;
+    validate: (value: unknown) => T | null;
+    failureMessage: string;
+  }): Promise<T> {
+    const attempts = Math.max(1, Math.trunc(input.attemptBudget));
+
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      const output = await input.execute(attempt);
+      const validated = input.validate(output);
+      if (validated !== null) {
+        return validated;
+      }
+
+      if (attempt < attempts) {
+        continue;
+      }
+    }
+
+    throw new LLMOutputError(input.failureMessage);
+  }
+
   private isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
+  }
+
+  private isProficiency(value: unknown): value is TopicItem["proficiency"] {
+    return value === "beginner"
+      || value === "intermediate"
+      || value === "advanced"
+      || value === "expert";
+  }
+
+  private isPrerequisiteOutput(value: unknown): value is PrerequisiteOutput {
+    if (!this.isRecord(value) || !Array.isArray(value.prerequisites)) {
+      return false;
+    }
+
+    return value.prerequisites.every((item) => {
+      return this.isRecord(item)
+        && typeof item.name === "string"
+        && this.isProficiency(item.proficiency);
+    });
+  }
+
+  private isDecomposeOutput(value: unknown): value is DecomposeOutput {
+    if (!this.isRecord(value) || !Array.isArray(value.steps)) {
+      return false;
+    }
+
+    return value.steps.every((item) => {
+      return this.isRecord(item)
+        && typeof item.name === "string"
+        && typeof item.objective === "string";
+    });
   }
 
   private formatRecentHistory(history: TutorMessage[], maxItems: number): string {
