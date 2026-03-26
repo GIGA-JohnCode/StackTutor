@@ -10,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@langchain/core": "^1.1.36",
+    "@langchain/groq": "^1.1.5",
+    "langchain": "^1.2.37",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

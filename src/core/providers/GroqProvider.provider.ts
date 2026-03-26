@@ -1,5 +1,6 @@
+import { ChatGroq } from "@langchain/groq";
 import { registerProvider } from "./ProviderFactory";
-import type { ChatModelLike, ModelProvider, ModelTask, ProviderConfig } from "./ModelProvider";
+import type { ModelProvider, ModelTask, ProviderConfig } from "./ModelProvider";
 
 // Provider only resolves model selection and initialization.
 // Operation logic belongs to src/core/llm.
@@ -19,19 +20,33 @@ export class GroqProvider implements ModelProvider {
     this.config = config ?? {};
   }
 
-  getModel(task: ModelTask = "default"): ChatModelLike {
+  getModel(task: ModelTask = "default"): ChatGroq {
     const resolvedTask = this.modelByTask[task] ? task : "default";
-    const modelName = this.config.modelName ?? this.modelByTask[resolvedTask];
+    const configuredModel = this.config.modelName?.trim();
+    const modelName = configuredModel || this.modelByTask[resolvedTask];
+    const apiKey = this.config.apiKey?.trim();
 
-    // TODO: Replace this placeholder with actual LangChain ChatGroq initialization.
-    // Example target shape once dependencies are wired:
-    // return new ChatGroq({ model: modelName, apiKey, temperature: 0.7 });
-    return {
-      provider: "groq",
-      model: modelName,
-      apiKey: this.config.apiKey,
-      hasApiKey: Boolean(this.config.apiKey?.trim()),
-    };
+    if (!apiKey) {
+      throw new Error("Groq provider requires a non-empty API key.");
+    }
+
+    if (!modelName || modelName.includes(" ")) {
+      throw new Error(`Invalid Groq model name '${modelName}'.`);
+    }
+
+    try {
+      return new ChatGroq({
+        apiKey,
+        model: modelName,
+        temperature: 0.2,
+        maxRetries: 2,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown provider initialization error";
+      throw new Error(
+        `Failed to initialize Groq model '${modelName}' for task '${resolvedTask}': ${message}`,
+      );
+    }
   }
 }
 
