@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LeftSidebar } from "./components/LeftSidebar";
 import { MainFeed } from "./components/MainFeed";
 import { RightSidebar } from "./components/RightSidebar";
@@ -20,6 +20,18 @@ function App() {
   const [settings, setSettings] = useState<AppSettings>(() => appStore.getSettings());
   const [startError, setStartError] = useState<string | null>(null);
   const [feedError, setFeedError] = useState<string | null>(null);
+  const [pendingSelection, setPendingSelection] = useState<boolean[]>([]);
+
+  const pendingReview = activeSession?.pendingPrerequisiteReview ?? null;
+
+  useEffect(() => {
+    if (!pendingReview) {
+      setPendingSelection([]);
+      return;
+    }
+
+    setPendingSelection(pendingReview.suggested.map(() => true));
+  }, [pendingReview?.createdAt, pendingReview?.parentTopicId]);
 
   const refreshSessions = () => {
     setSessions(appStore.getSessionList());
@@ -70,7 +82,6 @@ function App() {
 
     if (expansion.pending) {
       if (expansion.pending.suggested.length > 0) {
-        setFeedError("Prerequisite review is pending. Review UI is next increment.");
         return snapshot;
       }
 
@@ -137,6 +148,33 @@ function App() {
     void withActiveSession((sessionId) => appStore.moveStackItem(sessionId, fromIndex, toIndex));
   };
 
+  const onTogglePendingSelection = (index: number) => {
+    setPendingSelection((current) => current.map((value, idx) => (idx === index ? !value : value)));
+  };
+
+  const onAcceptPendingSuggestions = () => {
+    if (!pendingReview) {
+      return;
+    }
+
+    const accepted = pendingReview.suggested.filter((_, index) => pendingSelection[index]);
+    void withActiveSession(async (sessionId) => {
+      appStore.acceptPendingPrerequisites(sessionId, pendingReview.parentTopicId, accepted);
+      return runLessonCycle(sessionId);
+    });
+  };
+
+  const onDismissPendingSuggestions = () => {
+    if (!pendingReview) {
+      return;
+    }
+
+    void withActiveSession(async (sessionId) => {
+      appStore.dismissPendingPrerequisites(sessionId, pendingReview.parentTopicId);
+      return runLessonCycle(sessionId);
+    });
+  };
+
   return (
     <div className="grid min-h-screen grid-cols-1 gap-3 bg-slate-50 p-3 text-slate-900 lg:grid-cols-[280px_minmax(0,1fr)_320px]">
       <LeftSidebar
@@ -171,6 +209,51 @@ function App() {
         onRemoveItem={onRemoveStackItem}
         onMoveItem={onMoveStackItem}
       />
+
+      {!isStartView && pendingReview && pendingReview.suggested.length > 0 ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4">
+          <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-4 shadow-lg">
+            <h3 className="text-lg font-semibold">Review Prerequisites</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              Select prerequisites to add for {pendingReview.parentTopic.name}.
+            </p>
+            <div className="mt-3 max-h-72 overflow-auto rounded-lg border border-slate-200">
+              {pendingReview.suggested.map((item, index) => (
+                <label
+                  key={`${pendingReview.parentTopicId}:${item.name}:${index}`}
+                  className="flex cursor-pointer items-center justify-between gap-2 border-b border-slate-200 px-3 py-2 last:border-b-0"
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={pendingSelection[index] ?? false}
+                      onChange={() => onTogglePendingSelection(index)}
+                    />
+                    <span>{item.name}</span>
+                  </div>
+                  <small className="text-xs uppercase text-slate-500">{item.proficiency}</small>
+                </label>
+              ))}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <button
+                className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-900"
+                type="button"
+                onClick={onAcceptPendingSuggestions}
+              >
+                Apply Selected
+              </button>
+              <button
+                className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-900"
+                type="button"
+                onClick={onDismissPendingSuggestions}
+              >
+                Dismiss All
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
