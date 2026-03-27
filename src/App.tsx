@@ -19,16 +19,22 @@ function App() {
   });
   const [settings, setSettings] = useState<AppSettings>(() => appStore.getSettings());
   const [startError, setStartError] = useState<string | null>(null);
+  const [feedError, setFeedError] = useState<string | null>(null);
 
   const refreshSessions = () => {
     setSessions(appStore.getSessionList());
   };
 
   const selectSession = (sessionId: string) => {
-    appStore.setActiveSessionId(sessionId);
-    setActiveSessionId(sessionId);
-    setActiveSession(appStore.getSessionSnapshotById(sessionId));
-    setIsStartView(false);
+    try {
+      const snapshot = appStore.switchActiveSession(sessionId);
+      setActiveSessionId(sessionId);
+      setActiveSession(snapshot);
+      setIsStartView(false);
+      setFeedError(null);
+    } catch (error) {
+      setFeedError(error instanceof Error ? error.message : "Unable to switch session");
+    }
   };
 
   const startSession = (
@@ -43,6 +49,7 @@ function App() {
       setActiveSession(snapshot);
       setIsStartView(false);
       setStartError(null);
+      setFeedError(null);
       refreshSessions();
     } catch (error) {
       setStartError(error instanceof Error ? error.message : "Unable to start session");
@@ -57,31 +64,77 @@ function App() {
     }
   };
 
-  const onProceedPlaceholder = (stepId?: string) => {
-    void stepId;
-    setStartError("Proceed flow is scaffolded but not implemented yet.");
+  const runLessonCycle = async (sessionId: string): Promise<TutorSessionSnapshot> => {
+    const expansion = await appStore.expandTopIfNeeded(sessionId);
+    let snapshot = expansion.snapshot;
+
+    if (expansion.pending) {
+      if (expansion.pending.suggested.length > 0) {
+        setFeedError("Prerequisite review is pending. Review UI is next increment.");
+        return snapshot;
+      }
+
+      snapshot = appStore.dismissPendingPrerequisites(sessionId, expansion.pending.parentTopicId);
+    }
+
+    const lesson = await appStore.teachCurrentStep(sessionId, "initial");
+    return lesson.snapshot;
   };
 
-  const onRetryPlaceholder = (stepId?: string) => {
-    void stepId;
-    setStartError("Retry flow is scaffolded but not implemented yet.");
+  const withActiveSession = async (
+    operation: (sessionId: string) => Promise<TutorSessionSnapshot> | TutorSessionSnapshot,
+  ) => {
+    const sessionId = activeSessionId;
+    if (!sessionId) {
+      setFeedError("No active session selected.");
+      return;
+    }
+
+    try {
+      setFeedError(null);
+      const snapshot = await operation(sessionId);
+      setActiveSession(snapshot);
+      refreshSessions();
+    } catch (error) {
+      setFeedError(error instanceof Error ? error.message : "Operation failed");
+    }
   };
 
-  const onDoubtPlaceholder = (stepId: string | undefined, question: string) => {
-    void stepId;
-    void question;
-    setStartError("Doubt flow is scaffolded but not implemented yet.");
+  const onStartLesson = () => {
+    void withActiveSession(async (sessionId) => runLessonCycle(sessionId));
   };
 
-  const onRemoveStackItemPlaceholder = (itemId: string) => {
-    void itemId;
-    setStartError("Stack remove is scaffolded but not implemented yet.");
+  const onProceed = (_stepId?: string) => {
+    void withActiveSession(async (sessionId) => {
+      const result = appStore.proceedCurrentStep(sessionId);
+      if (result.sessionCompleted) {
+        return result.snapshot;
+      }
+
+      return runLessonCycle(sessionId);
+    });
   };
 
-  const onMoveStackItemPlaceholder = (fromIndex: number, toIndex: number) => {
-    void fromIndex;
-    void toIndex;
-    setStartError("Stack reorder is scaffolded but not implemented yet.");
+  const onRetry = (_stepId?: string) => {
+    void withActiveSession(async (sessionId) => {
+      const result = await appStore.retryCurrentStep(sessionId);
+      return result.snapshot;
+    });
+  };
+
+  const onDoubt = (_stepId: string | undefined, question: string) => {
+    void withActiveSession(async (sessionId) => {
+      const result = await appStore.askStepDoubt(sessionId, question);
+      return result.snapshot;
+    });
+  };
+
+  const onRemoveStackItem = (itemId: string) => {
+    void withActiveSession((sessionId) => appStore.removeStackItem(sessionId, itemId));
+  };
+
+  const onMoveStackItem = (fromIndex: number, toIndex: number) => {
+    void withActiveSession((sessionId) => appStore.moveStackItem(sessionId, fromIndex, toIndex));
   };
 
   return (
@@ -105,16 +158,18 @@ function App() {
       ) : (
         <MainFeed
           session={activeSession}
-          onProceed={onProceedPlaceholder}
-          onRetry={onRetryPlaceholder}
-          onDoubt={onDoubtPlaceholder}
+          error={feedError}
+          onStartLesson={onStartLesson}
+          onProceed={onProceed}
+          onRetry={onRetry}
+          onDoubt={onDoubt}
         />
       )}
 
       <RightSidebar
         stack={activeSession?.stack ?? []}
-        onRemoveItem={onRemoveStackItemPlaceholder}
-        onMoveItem={onMoveStackItemPlaceholder}
+        onRemoveItem={onRemoveStackItem}
+        onMoveItem={onMoveStackItem}
       />
     </div>
   );

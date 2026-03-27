@@ -122,6 +122,23 @@ export class TutorEngine {
     this.session.setPendingPrerequisiteReview(null);
   }
 
+  removeStackItem(itemId: string): void {
+    this.session.removeStackItem(itemId);
+
+    const pending = this.session.getPendingPrerequisiteReview();
+    if (pending && pending.parentTopicId === itemId) {
+      this.session.setPendingPrerequisiteReview(null);
+    }
+
+    if (this.session.isStackEmpty()) {
+      this.session.setStatus("completed");
+    }
+  }
+
+  moveStackItem(fromIndex: number, toIndex: number): void {
+    this.session.reorderStack(fromIndex, toIndex);
+  }
+
   async decomposeTopIfNeeded(stepCountHint?: number): Promise<StepItem[]> {
     const top = this.session.getTopStackItem();
     if (!top) {

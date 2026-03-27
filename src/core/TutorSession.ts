@@ -105,6 +105,20 @@ export class TutorSession {
     return popped;
   }
 
+  reorderStack(fromIndex: number, toIndex: number): void {
+    const stackManager = new StackManager(this.snapshot.stack);
+    stackManager.reorder(fromIndex, toIndex);
+    this.snapshot.stack = stackManager.getStack();
+    this.touch();
+  }
+
+  removeStackItem(itemId: string): void {
+    const stackManager = new StackManager(this.snapshot.stack);
+    stackManager.removeById(itemId);
+    this.snapshot.stack = stackManager.getStack();
+    this.touch();
+  }
+
   setSteps(topicId: string, steps: StepItem[]): void {
     const topic = this.snapshot.stack.find((item) => item.id === topicId);
     if (!topic) {

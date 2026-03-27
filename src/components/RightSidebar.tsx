@@ -20,7 +20,12 @@ export function RightSidebar(props: RightSidebarProps) {
         {stack.length === 0 ? (
           <p className="text-sm text-slate-500">No items in stack.</p>
         ) : (
-          reversedStack.map((item, index) => (
+          reversedStack.map((item, index) => {
+              const sourceIndex = stack.length - 1 - index;
+              const canMoveDown = sourceIndex > 0;
+              const canMoveUp = sourceIndex < stack.length - 1;
+
+              return (
               <div key={item.id} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
                 <div className="flex justify-between gap-2">
                   <div>
@@ -31,16 +36,16 @@ export function RightSidebar(props: RightSidebarProps) {
                     <button
                       className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
                       type="button"
-                      onClick={() => onMoveItem?.(index, index + 1)}
-                      disabled={index >= reversedStack.length - 1}
+                      onClick={() => onMoveItem?.(sourceIndex, sourceIndex - 1)}
+                      disabled={!canMoveDown}
                     >
                       Down
                     </button>
                     <button
                       className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
                       type="button"
-                      onClick={() => onMoveItem?.(index, index - 1)}
-                      disabled={index <= 0}
+                      onClick={() => onMoveItem?.(sourceIndex, sourceIndex + 1)}
+                      disabled={!canMoveUp}
                     >
                       Up
                     </button>
@@ -54,7 +59,8 @@ export function RightSidebar(props: RightSidebarProps) {
                   </div>
                 </div>
               </div>
-            ))
+              );
+            })
         )}
       </div>
     </aside>
