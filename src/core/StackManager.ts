@@ -5,6 +5,7 @@ export class StackManager {
   private stack: StackItem[];
 
   constructor(stack: StackItem[]) {
+    // TODO: StackManager currently receives external stack references directly; revisit defensive-copy strategy.
     this.stack = stack;
   }
 

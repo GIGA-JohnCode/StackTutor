@@ -66,6 +66,14 @@ export interface TutorSessionSnapshot {
   updatedAt: string;
   stack: StackItem[];
   feed: TutorMessage[];
+  pendingPrerequisiteReview: PendingPrerequisiteReview | null;
+}
+
+export interface PendingPrerequisiteReview {
+  parentTopicId: string;
+  parentTopic: TopicItem;
+  suggested: TopicItem[];
+  createdAt: string;
 }
 
 export interface SessionListItem {

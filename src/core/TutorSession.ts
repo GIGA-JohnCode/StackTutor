@@ -1,10 +1,13 @@
 import {
+  type PendingPrerequisiteReview,
   type SessionStatus,
   type StackItem,
   type StepItem,
+  type TopicItem,
   type TutorMessage,
   type TutorSessionSnapshot,
 } from "./types/domain";
+import { StackManager } from "./StackManager";
 
 // Aggregate root for one learning session.
 // Keeps domain state and exposes intent-based mutations.
@@ -26,20 +29,36 @@ export class TutorSession {
       updatedAt: now,
       stack: [],
       feed: [],
+      pendingPrerequisiteReview: null,
     });
   }
 
   static fromSnapshot(snapshot: TutorSessionSnapshot): TutorSession {
     // Rehydrate an existing session from repository data.
-    return new TutorSession(snapshot);
+    return new TutorSession({
+      ...snapshot,
+      pendingPrerequisiteReview: snapshot.pendingPrerequisiteReview ?? null,
+    });
   }
 
-  getSnapshot(): TutorSessionSnapshot {
+  // TODO: This is only a compile-time readonly view; runtime mutation is still possible via nested references.
+  getSnapshot(): Readonly<TutorSessionSnapshot> {
     return this.snapshot;
   }
 
   getStatus(): SessionStatus {
     return this.snapshot.status;
+  }
+
+  getTopStackItem(): StackItem | undefined {
+    // TODO: StackManager currently operates on the same underlying stack reference; revisit structural immutability guarantees.
+    const stackManager = new StackManager(this.snapshot.stack);
+    return stackManager.peekTop();
+  }
+
+  isStackEmpty(): boolean {
+    const stackManager = new StackManager(this.snapshot.stack);
+    return stackManager.isEmpty();
   }
 
   setStatus(status: SessionStatus): void {
@@ -50,6 +69,40 @@ export class TutorSession {
   setStack(stack: StackItem[]): void {
     this.snapshot.stack = stack;
     this.touch();
+  }
+
+  getPendingPrerequisiteReview(): PendingPrerequisiteReview | null {
+    return this.snapshot.pendingPrerequisiteReview;
+  }
+
+  setPendingPrerequisiteReview(review: PendingPrerequisiteReview | null): void {
+    this.snapshot.pendingPrerequisiteReview = review;
+    this.touch();
+  }
+
+  markPrerequisitesSearched(topicId: string): void {
+    const topic = this.snapshot.stack.find((item) => item.id === topicId);
+    if (!topic) {
+      throw new Error("Cannot mark prerequisites searched for missing stack topic");
+    }
+
+    topic.prerequisitesSearched = true;
+    this.touch();
+  }
+
+  pushPrerequisitesAbove(parentTopicId: string, accepted: TopicItem[]): void {
+    const stackManager = new StackManager(this.snapshot.stack);
+    stackManager.pushPrerequisitesAbove(parentTopicId, accepted);
+    this.snapshot.stack = stackManager.getStack();
+    this.touch();
+  }
+
+  popTopStackItem(): StackItem | undefined {
+    const stackManager = new StackManager(this.snapshot.stack);
+    const popped = stackManager.popTop();
+    this.snapshot.stack = stackManager.getStack();
+    this.touch();
+    return popped;
   }
 
   setSteps(topicId: string, steps: StepItem[]): void {
@@ -70,6 +123,21 @@ export class TutorSession {
     }
 
     topic.activeStepIndex += 1;
+    this.touch();
+  }
+
+  markStepCompleted(topicId: string, stepIndex: number): void {
+    const topic = this.snapshot.stack.find((item) => item.id === topicId);
+    if (!topic) {
+      throw new Error("Cannot complete step for missing stack topic");
+    }
+
+    const step = topic.steps[stepIndex];
+    if (!step) {
+      throw new Error("Cannot complete missing step index");
+    }
+
+    step.completed = true;
     this.touch();
   }
 
