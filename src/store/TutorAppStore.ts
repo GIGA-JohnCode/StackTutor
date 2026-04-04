@@ -13,6 +13,7 @@ import type { AppSettings } from "../core/persistence/SettingsRepository";
 import type {
   PendingPrerequisiteReview,
   SessionListItem,
+  StepItem,
   TopicItem,
   TutorMessage,
   TutorSessionSnapshot,
@@ -218,6 +219,17 @@ export class TutorAppStore {
     const message = await engine.teachCurrentStep(mode, doubt);
     const snapshot = this.persistEngineSnapshot(engine);
     return { message, snapshot };
+  }
+
+  async decomposeTopIfNeeded(
+    sessionId: string,
+    stepCountHint?: number,
+  ): Promise<{ steps: StepItem[]; snapshot: TutorSessionSnapshot }> {
+    logger.debug("Decomposing top if needed", { sessionId, stepCountHint });
+    const engine = this.requireEngine(sessionId);
+    const steps = await engine.decomposeTopIfNeeded(stepCountHint);
+    const snapshot = this.persistEngineSnapshot(engine);
+    return { steps, snapshot };
   }
 
   async retryCurrentStep(

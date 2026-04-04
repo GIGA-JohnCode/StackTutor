@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { AppSettings } from "../core/persistence/SettingsRepository";
 
+type ProviderSettingsMap = NonNullable<AppSettings["providerSettings"]>;
+
 interface ByokSettingsPanelProps {
   initialSettings: AppSettings;
   providerOptions: string[];
@@ -16,9 +18,48 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
     ? normalizedInitialProvider
     : normalizedProviderOptions[0];
 
+  const createInitialProviderSettings = (): ProviderSettingsMap => {
+    const fromSettings = initialSettings.providerSettings ?? {};
+    const normalized = Object.entries(fromSettings).reduce<ProviderSettingsMap>((acc, [provider, config]) => {
+      const providerName = provider.trim().toLowerCase();
+      if (!providerName) {
+        return acc;
+      }
+
+      const apiKey = config?.apiKey?.trim();
+      const modelName = config?.modelName?.trim();
+      if (!apiKey && !modelName) {
+        return acc;
+      }
+
+      acc[providerName] = {
+        apiKey: apiKey || undefined,
+        modelName: modelName || undefined,
+      };
+
+      return acc;
+    }, {});
+
+    // Backward compatibility in UI state: preserve legacy single-provider values.
+    const legacyApiKey = initialSettings.apiKey?.trim();
+    const legacyModelName = initialSettings.modelName?.trim();
+    if ((legacyApiKey || legacyModelName) && !normalized[resolvedInitialProvider]) {
+      normalized[resolvedInitialProvider] = {
+        apiKey: legacyApiKey || undefined,
+        modelName: legacyModelName || undefined,
+      };
+    }
+
+    return normalized;
+  };
+
+  const initialProviderSettings = createInitialProviderSettings();
+  const initialSelectedProviderConfig = initialProviderSettings[resolvedInitialProvider];
+
   const [providerName, setProviderName] = useState(resolvedInitialProvider);
-  const [modelName, setModelName] = useState(initialSettings.modelName ?? "");
-  const [apiKey, setApiKey] = useState(initialSettings.apiKey ?? "");
+  const [providerSettings, setProviderSettings] = useState<ProviderSettingsMap>(initialProviderSettings);
+  const [modelName, setModelName] = useState(initialSelectedProviderConfig?.modelName ?? "");
+  const [apiKey, setApiKey] = useState(initialSelectedProviderConfig?.apiKey ?? "");
   const [saved, setSaved] = useState(false);
 
   const providerLabelByName: Record<string, string> = {
@@ -44,10 +85,43 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    const normalizedProviderSettings = Object.entries(providerSettings).reduce<ProviderSettingsMap>((acc, [provider, config]) => {
+      const normalizedProvider = provider.trim().toLowerCase();
+      if (!normalizedProvider) {
+        return acc;
+      }
+
+      const normalizedApiKey = config?.apiKey?.trim();
+      const normalizedModelName = config?.modelName?.trim();
+      if (!normalizedApiKey && !normalizedModelName) {
+        return acc;
+      }
+
+      acc[normalizedProvider] = {
+        apiKey: normalizedApiKey || undefined,
+        modelName: normalizedModelName || undefined,
+      };
+
+      return acc;
+    }, {});
+
+    const activeApiKey = apiKey.trim() || undefined;
+    const activeModelName = modelName.trim() || undefined;
+    if (activeApiKey || activeModelName) {
+      normalizedProviderSettings[providerName] = {
+        apiKey: activeApiKey,
+        modelName: activeModelName,
+      };
+    } else {
+      delete normalizedProviderSettings[providerName];
+    }
+
     onSave({
       providerName,
-      modelName: modelName.trim() || undefined,
-      apiKey: apiKey.trim() || undefined,
+      modelName: activeModelName,
+      apiKey: activeApiKey,
+      providerSettings: normalizedProviderSettings,
     });
     setSaved(true);
   };
@@ -62,8 +136,11 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
           id="provider-name-input"
           value={providerName}
           onChange={(event) => {
-            setProviderName(event.target.value);
-            setModelName("");
+            const nextProvider = event.target.value;
+            const nextConfig = providerSettings[nextProvider];
+            setProviderName(nextProvider);
+            setModelName(nextConfig?.modelName ?? "");
+            setApiKey(nextConfig?.apiKey ?? "");
             setSaved(false);
           }}
         >
@@ -78,7 +155,18 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
           id="model-name-input"
           value={modelName}
           onChange={(event) => {
-            setModelName(event.target.value);
+            const nextValue = event.target.value;
+            setModelName(nextValue);
+            setProviderSettings((current) => {
+              const currentProvider = current[providerName] ?? {};
+              return {
+                ...current,
+                [providerName]: {
+                  ...currentProvider,
+                  modelName: nextValue || undefined,
+                },
+              };
+            });
             setSaved(false);
           }}
           placeholder={modelPlaceholder}
@@ -91,7 +179,18 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
           type="password"
           value={apiKey}
           onChange={(event) => {
-            setApiKey(event.target.value);
+            const nextValue = event.target.value;
+            setApiKey(nextValue);
+            setProviderSettings((current) => {
+              const currentProvider = current[providerName] ?? {};
+              return {
+                ...current,
+                [providerName]: {
+                  ...currentProvider,
+                  apiKey: nextValue || undefined,
+                },
+              };
+            });
             setSaved(false);
           }}
           placeholder={keyPlaceholder}

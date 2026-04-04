@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LeftSidebar } from "./components/LeftSidebar";
 import { MainFeed } from "./components/MainFeed";
 import { RightSidebar } from "./components/RightSidebar";
@@ -24,7 +24,11 @@ function App() {
   const [settings, setSettings] = useState<AppSettings>(() => appStore.getSettings());
   const [startError, setStartError] = useState<string | null>(null);
   const [feedError, setFeedError] = useState<string | null>(null);
+  const [operationStatus, setOperationStatus] = useState<string | null>(null);
   const [pendingSelectionByReview, setPendingSelectionByReview] = useState<Record<string, boolean[]>>({});
+  const operationInFlightRef = useRef(false);
+
+  const isBusy = operationStatus !== null;
 
   const pendingReview = activeSession?.pendingPrerequisiteReview ?? null;
   const pendingReviewKey = pendingReview ? `${pendingReview.parentTopicId}:${pendingReview.createdAt}` : null;
@@ -114,20 +118,32 @@ function App() {
     }
   };
 
-  const runLessonCycle = async (sessionId: string): Promise<TutorSessionSnapshot> => {
+  const runLessonCycle = async (
+    sessionId: string,
+    onProgress?: (status: string) => void,
+  ): Promise<TutorSessionSnapshot> => {
     logger.debug("Running lesson cycle", { sessionId });
+    onProgress?.("Fetching prerequisites...");
     const expansion = await appStore.expandTopIfNeeded(sessionId);
     let snapshot = expansion.snapshot;
 
     if (expansion.pending) {
       if (expansion.pending.suggested.length > 0) {
+        onProgress?.("Waiting for prerequisite selection...");
         return snapshot;
       }
 
+      onProgress?.("No prerequisites found. Continuing...");
       snapshot = appStore.dismissPendingPrerequisites(sessionId, expansion.pending.parentTopicId);
     }
 
+    onProgress?.("Fetching steps...");
+    const decomposition = await appStore.decomposeTopIfNeeded(sessionId);
+    snapshot = decomposition.snapshot;
+
+    onProgress?.("Generating lesson...");
     const lesson = await appStore.teachCurrentStep(sessionId, "initial");
+    onProgress?.("Finalizing update...");
     logger.debug("Lesson cycle completed", {
       sessionId,
       feedSize: lesson.snapshot.feed.length,
@@ -137,8 +153,17 @@ function App() {
   };
 
   const withActiveSession = async (
-    operation: (sessionId: string) => Promise<TutorSessionSnapshot> | TutorSessionSnapshot,
+    initialStatus: string,
+    operation: (
+      sessionId: string,
+      onProgress: (status: string) => void,
+    ) => Promise<TutorSessionSnapshot> | TutorSessionSnapshot,
   ) => {
+    if (operationInFlightRef.current) {
+      logger.warn("Operation ignored: another operation is in progress", { operationStatus });
+      return;
+    }
+
     const sessionId = activeSessionId;
     if (!sessionId) {
       logger.warn("Operation blocked: no active session selected");
@@ -146,39 +171,47 @@ function App() {
       return;
     }
 
+    operationInFlightRef.current = true;
+
     try {
       setFeedError(null);
-      const snapshot = await operation(sessionId);
+      setOperationStatus(initialStatus);
+      const snapshot = await operation(sessionId, setOperationStatus);
       setActiveSession(snapshot);
       refreshSessions();
       logger.debug("Operation completed", { sessionId, stackSize: snapshot.stack.length, feedSize: snapshot.feed.length });
     } catch (error) {
       logger.error("Operation failed", { sessionId, error });
       setFeedError(error instanceof Error ? error.message : "Operation failed");
+    } finally {
+      operationInFlightRef.current = false;
+      setOperationStatus(null);
     }
   };
 
   const onStartLesson = () => {
     logger.info("Start lesson requested", { sessionId: activeSessionId });
-    void withActiveSession(async (sessionId) => runLessonCycle(sessionId));
+    void withActiveSession("Preparing lesson...", async (sessionId, onProgress) => runLessonCycle(sessionId, onProgress));
   };
 
   const onProceed = () => {
     logger.info("Proceed requested", { sessionId: activeSessionId });
-    void withActiveSession(async (sessionId) => {
+    void withActiveSession("Completing current step...", async (sessionId, onProgress) => {
       const result = appStore.proceedCurrentStep(sessionId);
       if (result.sessionCompleted) {
         logger.info("Session completed after proceed", { sessionId });
         return result.snapshot;
       }
 
-      return runLessonCycle(sessionId);
+      onProgress("Preparing next lesson...");
+      return runLessonCycle(sessionId, onProgress);
     });
   };
 
   const onRetry = () => {
     logger.info("Retry requested", { sessionId: activeSessionId });
-    void withActiveSession(async (sessionId) => {
+    void withActiveSession("Regenerating current lesson...", async (sessionId, onProgress) => {
+      onProgress("Generating lesson...");
       const result = await appStore.retryCurrentStep(sessionId);
       return result.snapshot;
     });
@@ -186,7 +219,8 @@ function App() {
 
   const onDoubt = (_stepId: string | undefined, question: string) => {
     logger.info("Doubt requested", { sessionId: activeSessionId, questionLength: question.trim().length });
-    void withActiveSession(async (sessionId) => {
+    void withActiveSession("Sending your doubt...", async (sessionId, onProgress) => {
+      onProgress("Generating clarification...");
       const result = await appStore.askStepDoubt(sessionId, question);
       return result.snapshot;
     });
@@ -194,17 +228,17 @@ function App() {
 
   const onRemoveStackItem = (itemId: string) => {
     logger.info("Removing stack item", { sessionId: activeSessionId, itemId });
-    void withActiveSession((sessionId) => appStore.removeStackItem(sessionId, itemId));
+    void withActiveSession("Updating stack...", (sessionId) => appStore.removeStackItem(sessionId, itemId));
   };
 
   const onMoveStackItem = (fromIndex: number, toIndex: number) => {
     logger.info("Moving stack item", { sessionId: activeSessionId, fromIndex, toIndex });
-    void withActiveSession((sessionId) => appStore.moveStackItem(sessionId, fromIndex, toIndex));
+    void withActiveSession("Reordering stack...", (sessionId) => appStore.moveStackItem(sessionId, fromIndex, toIndex));
   };
 
   const onRemoveUpcomingStep = (topicId: string, stepId: string) => {
     logger.info("Removing upcoming step", { sessionId: activeSessionId, topicId, stepId });
-    void withActiveSession((sessionId) => appStore.removeUpcomingStep(sessionId, topicId, stepId));
+    void withActiveSession("Removing step...", (sessionId) => appStore.removeUpcomingStep(sessionId, topicId, stepId));
   };
 
   const onTogglePendingSelection = (index: number) => {
@@ -233,9 +267,10 @@ function App() {
       acceptedCount: accepted.length,
       suggestedCount: pendingReview.suggested.length,
     });
-    void withActiveSession(async (sessionId) => {
+    void withActiveSession("Applying prerequisite choices...", async (sessionId, onProgress) => {
       appStore.acceptPendingPrerequisites(sessionId, pendingReview.parentTopicId, accepted);
-      return runLessonCycle(sessionId);
+      onProgress("Generating next lesson...");
+      return runLessonCycle(sessionId, onProgress);
     });
   };
 
@@ -248,9 +283,10 @@ function App() {
       sessionId: activeSessionId,
       parentTopicId: pendingReview.parentTopicId,
     });
-    void withActiveSession(async (sessionId) => {
+    void withActiveSession("Skipping prerequisite suggestions...", async (sessionId, onProgress) => {
       appStore.dismissPendingPrerequisites(sessionId, pendingReview.parentTopicId);
-      return runLessonCycle(sessionId);
+      onProgress("Generating next lesson...");
+      return runLessonCycle(sessionId, onProgress);
     });
   };
 
@@ -306,6 +342,8 @@ function App() {
         <MainFeed
           session={activeSession}
           error={feedError}
+          isBusy={isBusy}
+          statusMessage={operationStatus}
           onStartLesson={onStartLesson}
           onProceed={onProceed}
           onRetry={onRetry}
@@ -316,6 +354,7 @@ function App() {
       {!isStartView ? (
         <RightSidebar
           stack={activeSession?.stack ?? []}
+          isBusy={isBusy}
           onRemoveItem={onRemoveStackItem}
           onMoveItem={onMoveStackItem}
           onRemoveUpcomingStep={onRemoveUpcomingStep}
@@ -347,18 +386,25 @@ function App() {
                 </label>
               ))}
             </div>
+            {isBusy && operationStatus ? (
+              <p className="mt-2 text-sm text-sky-700" aria-live="polite">
+                {operationStatus}
+              </p>
+            ) : null}
             <div className="mt-3 flex gap-2">
               <button
-                className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-900"
+                className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
                 type="button"
                 onClick={onAcceptPendingSuggestions}
+                disabled={isBusy}
               >
                 Apply Selected
               </button>
               <button
-                className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-900"
+                className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
                 type="button"
                 onClick={onDismissPendingSuggestions}
+                disabled={isBusy}
               >
                 Dismiss All
               </button>

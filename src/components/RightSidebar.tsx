@@ -5,13 +5,20 @@ import type { StackItem } from "../core/types/domain";
 // Must support reorder and remove actions initiated by the user.
 interface RightSidebarProps {
   stack: StackItem[];
+  isBusy?: boolean;
   onRemoveItem?: (itemId: string) => void;
   onMoveItem?: (fromIndex: number, toIndex: number) => void;
   onRemoveUpcomingStep?: (topicId: string, stepId: string) => void;
 }
 
 export function RightSidebar(props: RightSidebarProps) {
-  const { stack, onRemoveItem, onMoveItem, onRemoveUpcomingStep } = props;
+  const {
+    stack,
+    isBusy = false,
+    onRemoveItem,
+    onMoveItem,
+    onRemoveUpcomingStep,
+  } = props;
   const listRef = useRef<HTMLDivElement | null>(null);
 
   const reversedStack = stack.slice().reverse();
@@ -51,7 +58,7 @@ export function RightSidebar(props: RightSidebarProps) {
                         className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
                         type="button"
                         onClick={() => onMoveItem?.(sourceIndex, sourceIndex - 1)}
-                        disabled={!canMoveDown}
+                        disabled={isBusy || !canMoveDown}
                       >
                         Down
                       </button>
@@ -59,14 +66,15 @@ export function RightSidebar(props: RightSidebarProps) {
                         className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
                         type="button"
                         onClick={() => onMoveItem?.(sourceIndex, sourceIndex + 1)}
-                        disabled={!canMoveUp}
+                        disabled={isBusy || !canMoveUp}
                       >
                         Up
                       </button>
                       <button
-                        className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-900"
+                        className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
                         type="button"
                         onClick={() => onRemoveItem?.(item.id)}
+                        disabled={isBusy}
                       >
                         Remove
                       </button>
@@ -101,10 +109,11 @@ export function RightSidebar(props: RightSidebarProps) {
                                     {step.completed ? <span className="text-emerald-700">Done</span> : null}
                                     {canRemoveStep ? (
                                       <button
-                                        className="cursor-pointer rounded border border-red-300 bg-red-50 px-1.5 py-0.5 text-[10px] text-red-700"
+                                        className="cursor-pointer rounded border border-red-300 bg-red-50 px-1.5 py-0.5 text-[10px] text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                                         type="button"
                                         onClick={() => onRemoveUpcomingStep?.(item.id, step.id)}
                                         title="Remove step"
+                                        disabled={isBusy}
                                       >
                                         x
                                       </button>
