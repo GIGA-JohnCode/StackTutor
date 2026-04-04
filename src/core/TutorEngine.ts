@@ -1,4 +1,5 @@
 import { TutorSession } from "./TutorSession";
+import { getLogger } from "./logging/Logger";
 import { KnowledgeStore } from "./knowledge/KnowledgeStore";
 import type { KnowledgeValidator } from "./knowledge/KnowledgeValidator";
 import type { LLMClient } from "./llm/LLMClient";
@@ -11,6 +12,8 @@ import type {
   TutorMessage,
   TutorSessionSnapshot,
 } from "./types/domain";
+
+const logger = getLogger("TutorEngine");
 
 // Deterministic orchestration engine for the tutor workflow.
 // This is the heart of business logic and should remain UI-framework agnostic.
@@ -34,6 +37,7 @@ export class TutorEngine {
 
   startWithRootTopic(topic: string, proficiency: TopicItem["proficiency"], context?: string): void {
     const normalizedContext = context?.trim();
+    logger.info("Starting root topic", { topic, proficiency, hasContext: Boolean(normalizedContext) });
 
     const root: StackItem = {
       id: `topic:${topic.toLowerCase()}`,
@@ -64,18 +68,27 @@ export class TutorEngine {
     const top = this.session.getTopStackItem();
 
     if (!top) {
+      logger.warn("Expand skipped: stack is empty");
       this.session.setStatus("completed");
       return [];
     }
 
     if (top.prerequisitesSearched || top.depth >= this.session.getSnapshot().maxDepth) {
+      logger.debug("Expand skipped: prerequisites already searched or depth limit reached", {
+        topicId: top.id,
+        prerequisitesSearched: top.prerequisitesSearched,
+        depth: top.depth,
+      });
       return [];
     }
 
     const pending = this.session.getPendingPrerequisiteReview();
     if (pending && pending.parentTopicId === top.id) {
+      logger.debug("Expand reused pending prerequisite review", { topicId: top.id, suggestedCount: pending.suggested.length });
       return pending.suggested;
     }
+
+    logger.info("Generating prerequisites", { topicId: top.id, topic: top.topic.name, maxPrereqs });
 
     const rawOutput = await this.llmClient.generatePrerequisites({
       topic: top.topic,
@@ -97,6 +110,8 @@ export class TutorEngine {
       createdAt: new Date().toISOString(),
     });
 
+    logger.info("Generated prerequisites", { topicId: top.id, suggestedCount: validated.length });
+
     return validated;
   }
 
@@ -106,6 +121,7 @@ export class TutorEngine {
       throw new Error("Pending prerequisite review does not match parent topic");
     }
 
+  logger.info("Applying accepted prerequisites", { parentTopicId, acceptedCount: accepted.length });
     this.session.pushPrerequisitesAbove(parentTopicId, accepted);
     this.session.markPrerequisitesSearched(parentTopicId);
     this.session.setPendingPrerequisiteReview(null);
@@ -114,6 +130,7 @@ export class TutorEngine {
   dismissPendingPrerequisites(parentTopicId: string): void {
     const pending = this.session.getPendingPrerequisiteReview();
     if (!pending) {
+      logger.debug("Dismiss pending prerequisites skipped: no pending review", { parentTopicId });
       return;
     }
 
@@ -121,11 +138,13 @@ export class TutorEngine {
       throw new Error("Pending prerequisite review does not match parent topic");
     }
 
+    logger.info("Dismissing pending prerequisites", { parentTopicId, suggestedCount: pending.suggested.length });
     this.session.markPrerequisitesSearched(parentTopicId);
     this.session.setPendingPrerequisiteReview(null);
   }
 
   removeStackItem(itemId: string): void {
+    logger.info("Removing stack item", { itemId });
     this.session.removeStackItem(itemId);
 
     const pending = this.session.getPendingPrerequisiteReview();
@@ -139,36 +158,49 @@ export class TutorEngine {
   }
 
   moveStackItem(fromIndex: number, toIndex: number): void {
+    logger.info("Reordering stack item", { fromIndex, toIndex });
     this.session.reorderStack(fromIndex, toIndex);
   }
 
   removeUpcomingStep(topicId: string, stepId: string): void {
     const top = this.session.getTopStackItem();
     if (!top) {
+      logger.error("Cannot remove step: no active topic", { topicId, stepId });
       throw new Error("No active topic to remove step from");
     }
 
     if (top.id !== topicId) {
+      logger.warn("Cannot remove step: topic is not current top", { topicId, topTopicId: top.id, stepId });
       throw new Error("Only steps from the top topic can be removed");
     }
 
+    logger.info("Removing upcoming step", { topicId, stepId });
     this.session.removeUpcomingStep(topicId, stepId);
   }
 
   async decomposeTopIfNeeded(stepCountHint?: number): Promise<StepItem[]> {
     const top = this.session.getTopStackItem();
     if (!top) {
+      logger.warn("Decompose skipped: stack is empty");
       this.session.setStatus("completed");
       return [];
     }
 
     if (!this.isTopReadyToTeach(top)) {
+      logger.debug("Decompose skipped: top is not ready to teach", {
+        topicId: top.id,
+        prerequisitesSearched: top.prerequisitesSearched,
+        depth: top.depth,
+      });
       return [];
     }
 
     if (top.steps.length > 0) {
+      logger.debug("Decompose skipped: steps already exist", { topicId: top.id, stepCount: top.steps.length });
       return top.steps;
     }
+
+    logger.info("Decomposing topic", { topicId: top.id, topic: top.topic.name, stepCountHint });
 
     const rawOutput = await this.llmClient.decomposeTopic({
       topic: top.topic,
@@ -182,17 +214,22 @@ export class TutorEngine {
     });
 
     if (parsedSteps.length === 0) {
+      logger.error("Decomposition produced no steps", { topicId: top.id });
       throw new Error("Topic decomposition returned no usable steps");
     }
 
     this.session.setSteps(top.id, parsedSteps);
 
+    logger.info("Decomposition complete", { topicId: top.id, stepCount: parsedSteps.length });
+
     return parsedSteps;
   }
 
   async teachCurrentStep(mode: "initial" | "doubt", doubt?: string): Promise<TutorMessage | null> {
+    logger.debug("Teaching current step", { mode, hasDoubt: Boolean(doubt?.trim()) });
     const resolved = await this.resolveActiveTeachingTarget();
     if (!resolved) {
+      logger.warn("Teach skipped: no active teaching target");
       return null;
     }
 
@@ -217,12 +254,15 @@ export class TutorEngine {
     });
 
     this.session.appendMessage(message);
+    logger.info("Teaching message appended", { topicId: top.id, stepId: step.id, kind });
     return message;
   }
 
   async retryCurrentStep(): Promise<TutorMessage | null> {
+    logger.info("Retrying current step");
     const resolved = await this.resolveActiveTeachingTarget();
     if (!resolved) {
+      logger.warn("Retry skipped: no active teaching target");
       return null;
     }
 
@@ -244,6 +284,7 @@ export class TutorEngine {
     });
 
     this.session.appendMessage(message);
+    logger.info("Retry message appended", { topicId: top.id, stepId: step.id });
     return message;
   }
 
@@ -253,8 +294,11 @@ export class TutorEngine {
       throw new Error("Doubt question cannot be empty");
     }
 
+    logger.info("Handling step doubt", { questionLength: trimmed.length });
+
     const resolved = await this.resolveActiveTeachingTarget();
     if (!resolved) {
+      logger.warn("Doubt skipped: no active teaching target");
       return null;
     }
 
@@ -288,8 +332,10 @@ export class TutorEngine {
     completedTopic?: TopicItem;
     sessionCompleted: boolean;
   } {
+    logger.info("Proceeding current step");
     const top = this.session.getTopStackItem();
     if (!top) {
+      logger.warn("Proceed ended session: stack is empty");
       this.session.setStatus("completed");
       return {
         advanced: false,
@@ -300,6 +346,7 @@ export class TutorEngine {
     if (top.steps.length === 0) {
       // If the top was manually changed (remove/reorder), let caller continue
       // into normal expansion/decompose/teach flow instead of hard failing.
+      logger.debug("Proceed no-op: top has no steps yet", { topicId: top.id });
       return {
         advanced: false,
         sessionCompleted: false,
@@ -309,6 +356,11 @@ export class TutorEngine {
     const activeIndex = top.activeStepIndex;
     const activeStep = top.steps[activeIndex];
     if (!activeStep) {
+      logger.error("Proceed failed: active step index out of range", {
+        topicId: top.id,
+        activeIndex,
+        stepCount: top.steps.length,
+      });
       throw new Error("Active step index is out of range");
     }
 
@@ -317,6 +369,7 @@ export class TutorEngine {
 
     if (!isLastStep) {
       this.session.incrementStep(top.id);
+      logger.info("Advanced to next step", { topicId: top.id, fromStepIndex: activeIndex, toStepIndex: activeIndex + 1 });
       return {
         advanced: true,
         sessionCompleted: false,
@@ -326,6 +379,7 @@ export class TutorEngine {
     const completedTopic = top.topic;
     this.session.popTopStackItem();
     this.knowledgeStore.upsert(completedTopic.name, completedTopic.proficiency, completedTopic.context);
+    logger.info("Completed topic and popped from stack", { topicId: top.id, topic: completedTopic.name });
 
     const pending = this.session.getPendingPrerequisiteReview();
     if (pending && pending.parentTopicId === top.id) {
@@ -334,6 +388,8 @@ export class TutorEngine {
 
     const empty = this.session.isStackEmpty();
     this.session.setStatus(empty ? "completed" : "active");
+
+    logger.info("Proceed completed topic", { sessionCompleted: empty });
 
     return {
       advanced: false,
@@ -345,18 +401,26 @@ export class TutorEngine {
   private async resolveActiveTeachingTarget(): Promise<{ top: StackItem; step: StepItem } | null> {
     let top = this.session.getTopStackItem();
     if (!top) {
+      logger.warn("Resolve target failed: stack is empty");
       this.session.setStatus("completed");
       return null;
     }
 
     if (!this.isTopReadyToTeach(top)) {
+      logger.debug("Resolve target blocked: top not ready", {
+        topicId: top.id,
+        prerequisitesSearched: top.prerequisitesSearched,
+        depth: top.depth,
+      });
       return null;
     }
 
     if (top.steps.length === 0) {
+      logger.debug("Resolve target: steps missing, triggering decomposition", { topicId: top.id });
       await this.decomposeTopIfNeeded();
       top = this.session.getTopStackItem();
       if (!top) {
+        logger.warn("Resolve target failed after decomposition: stack became empty");
         this.session.setStatus("completed");
         return null;
       }
@@ -364,6 +428,11 @@ export class TutorEngine {
 
     const step = top.steps[top.activeStepIndex];
     if (!step) {
+      logger.error("Resolve target failed: active step index out of range", {
+        topicId: top.id,
+        activeStepIndex: top.activeStepIndex,
+        stepCount: top.steps.length,
+      });
       throw new Error("Active step index is out of range");
     }
 

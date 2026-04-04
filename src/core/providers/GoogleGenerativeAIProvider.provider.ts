@@ -1,6 +1,9 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { registerProvider } from "./ProviderFactory";
+import { getLogger } from "../logging/Logger";
 import type { ModelProvider, ModelTask, ProviderConfig } from "./ModelProvider";
+
+const logger = getLogger("GoogleProvider");
 
 // Provider only resolves model selection and initialization.
 // Operation logic belongs to src/core/llm.
@@ -26,6 +29,8 @@ export class GoogleGenerativeAIProvider implements ModelProvider {
     const modelName = configuredModel || this.modelByTask[resolvedTask];
     const apiKey = this.config.apiKey?.trim();
 
+    logger.debug("Resolving model", { task, resolvedTask, modelName, hasApiKey: Boolean(apiKey) });
+
     if (!apiKey) {
       throw new Error("Google provider requires a non-empty API key.");
     }
@@ -43,6 +48,7 @@ export class GoogleGenerativeAIProvider implements ModelProvider {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown provider initialization error";
+      logger.error("Model initialization failed", { resolvedTask, modelName, message });
       throw new Error(
         `Failed to initialize Google model '${modelName}' for task '${resolvedTask}': ${message}`,
       );

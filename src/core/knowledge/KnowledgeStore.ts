@@ -1,5 +1,8 @@
 import type { KnowledgeEntry, ProficiencyLevel, TopicItem } from "../types/domain";
+import { getLogger } from "../logging/Logger";
 import type { KnowledgeRepository } from "../persistence/KnowledgeRepository";
+
+const logger = getLogger("KnowledgeStore");
 
 // Global knowledge service shared across all sessions.
 // This is intentionally repository-backed and injected, not a hard singleton.
@@ -10,6 +13,7 @@ export class KnowledgeStore {
   constructor(repository: KnowledgeRepository) {
     this.repository = repository;
     this.knowledge = this.normalizeKnowledge(this.repository.getAll());
+    logger.info("Knowledge store initialized", { entryCount: Object.keys(this.knowledge).length });
   }
 
   getAll(): Record<string, KnowledgeEntry> {
@@ -18,6 +22,7 @@ export class KnowledgeStore {
 
   upsert(topic: string, proficiency: ProficiencyLevel, context: string, confidence?: number): void {
     const key = topic.trim().toLowerCase();
+    logger.info("Upserting knowledge topic", { topic, proficiency });
     this.knowledge[key] = {
       topic: {
         name: topic,

@@ -1,12 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LeftSidebar } from "./components/LeftSidebar";
 import { MainFeed } from "./components/MainFeed";
 import { RightSidebar } from "./components/RightSidebar";
 import { StartSessionView } from "./components/StartSessionView";
 import { ByokSettingsPanel } from "./components/ByokSettingsPanel";
+import { getLogger } from "./core/logging/Logger";
 import type { AppSettings } from "./core/persistence/SettingsRepository";
 import type { SessionListItem, TopicItem, TutorSessionSnapshot } from "./core/types/domain";
 import { TutorAppStore } from "./store/TutorAppStore";
+
+const logger = getLogger("App");
 
 function App() {
   const appStore = useMemo(() => new TutorAppStore(), []);
@@ -36,11 +39,20 @@ function App() {
     ? "grid h-screen grid-cols-1 gap-3 overflow-hidden bg-slate-50 p-3 text-slate-900 lg:grid-cols-[280px_minmax(0,1fr)]"
     : "grid h-screen grid-cols-1 gap-3 overflow-hidden bg-slate-50 p-3 text-slate-900 lg:grid-cols-[280px_minmax(0,1fr)_320px]";
 
+  useEffect(() => {
+    logger.info("App state snapshot", {
+      sessions: sessions.length,
+      hasActiveSession: Boolean(activeSessionId),
+      startView: isStartView,
+    });
+  }, [activeSessionId, isStartView, sessions.length]);
+
   const refreshSessions = () => {
     setSessions(appStore.getSessionList());
   };
 
   const selectSession = (sessionId: string) => {
+    logger.info("Selecting session", { sessionId });
     try {
       const snapshot = appStore.switchActiveSession(sessionId);
       setActiveSessionId(sessionId);
@@ -48,12 +60,15 @@ function App() {
       setIsStartView(false);
       setStartError(null);
       setFeedError(null);
+      logger.info("Session selected", { sessionId, stackSize: snapshot.stack.length });
     } catch (error) {
+      logger.error("Failed to select session", { sessionId, error });
       setFeedError(error instanceof Error ? error.message : "Unable to switch session");
     }
   };
 
   const onOpenNewSession = () => {
+    logger.info("Opening new session view");
     setIsStartView(true);
     setFeedError(null);
   };
@@ -64,6 +79,12 @@ function App() {
     rootProficiency: TopicItem["proficiency"],
     rootContext?: string,
   ) => {
+    logger.info("Starting session", {
+      topic,
+      maxDepth,
+      rootProficiency,
+      hasRootContext: Boolean(rootContext?.trim()),
+    });
     try {
       const engine = appStore.createEngineForNewSession(topic, maxDepth, rootProficiency, rootContext);
       const snapshot = engine.getSessionSnapshot();
@@ -73,12 +94,19 @@ function App() {
       setStartError(null);
       setFeedError(null);
       refreshSessions();
+      logger.info("Session started", { sessionId: snapshot.id, title: snapshot.title });
     } catch (error) {
+      logger.error("Failed to start session", { topic, error });
       setStartError(error instanceof Error ? error.message : "Unable to start session");
     }
   };
 
   const saveByokSettings = (nextSettings: AppSettings) => {
+    logger.info("Saving BYOK settings", {
+      providerName: nextSettings.providerName,
+      hasApiKey: Boolean(nextSettings.apiKey?.trim()),
+      hasModelName: Boolean(nextSettings.modelName?.trim()),
+    });
     appStore.saveSettings(nextSettings);
     setSettings(nextSettings);
     if (nextSettings.apiKey?.trim()) {
@@ -87,6 +115,7 @@ function App() {
   };
 
   const runLessonCycle = async (sessionId: string): Promise<TutorSessionSnapshot> => {
+    logger.debug("Running lesson cycle", { sessionId });
     const expansion = await appStore.expandTopIfNeeded(sessionId);
     let snapshot = expansion.snapshot;
 
@@ -99,6 +128,11 @@ function App() {
     }
 
     const lesson = await appStore.teachCurrentStep(sessionId, "initial");
+    logger.debug("Lesson cycle completed", {
+      sessionId,
+      feedSize: lesson.snapshot.feed.length,
+      stackSize: lesson.snapshot.stack.length,
+    });
     return lesson.snapshot;
   };
 
@@ -107,6 +141,7 @@ function App() {
   ) => {
     const sessionId = activeSessionId;
     if (!sessionId) {
+      logger.warn("Operation blocked: no active session selected");
       setFeedError("No active session selected.");
       return;
     }
@@ -116,19 +151,24 @@ function App() {
       const snapshot = await operation(sessionId);
       setActiveSession(snapshot);
       refreshSessions();
+      logger.debug("Operation completed", { sessionId, stackSize: snapshot.stack.length, feedSize: snapshot.feed.length });
     } catch (error) {
+      logger.error("Operation failed", { sessionId, error });
       setFeedError(error instanceof Error ? error.message : "Operation failed");
     }
   };
 
   const onStartLesson = () => {
+    logger.info("Start lesson requested", { sessionId: activeSessionId });
     void withActiveSession(async (sessionId) => runLessonCycle(sessionId));
   };
 
   const onProceed = () => {
+    logger.info("Proceed requested", { sessionId: activeSessionId });
     void withActiveSession(async (sessionId) => {
       const result = appStore.proceedCurrentStep(sessionId);
       if (result.sessionCompleted) {
+        logger.info("Session completed after proceed", { sessionId });
         return result.snapshot;
       }
 
@@ -137,6 +177,7 @@ function App() {
   };
 
   const onRetry = () => {
+    logger.info("Retry requested", { sessionId: activeSessionId });
     void withActiveSession(async (sessionId) => {
       const result = await appStore.retryCurrentStep(sessionId);
       return result.snapshot;
@@ -144,6 +185,7 @@ function App() {
   };
 
   const onDoubt = (_stepId: string | undefined, question: string) => {
+    logger.info("Doubt requested", { sessionId: activeSessionId, questionLength: question.trim().length });
     void withActiveSession(async (sessionId) => {
       const result = await appStore.askStepDoubt(sessionId, question);
       return result.snapshot;
@@ -151,14 +193,17 @@ function App() {
   };
 
   const onRemoveStackItem = (itemId: string) => {
+    logger.info("Removing stack item", { sessionId: activeSessionId, itemId });
     void withActiveSession((sessionId) => appStore.removeStackItem(sessionId, itemId));
   };
 
   const onMoveStackItem = (fromIndex: number, toIndex: number) => {
+    logger.info("Moving stack item", { sessionId: activeSessionId, fromIndex, toIndex });
     void withActiveSession((sessionId) => appStore.moveStackItem(sessionId, fromIndex, toIndex));
   };
 
   const onRemoveUpcomingStep = (topicId: string, stepId: string) => {
+    logger.info("Removing upcoming step", { sessionId: activeSessionId, topicId, stepId });
     void withActiveSession((sessionId) => appStore.removeUpcomingStep(sessionId, topicId, stepId));
   };
 
@@ -182,6 +227,12 @@ function App() {
     }
 
     const accepted = pendingReview.suggested.filter((_, index) => pendingSelection[index]);
+    logger.info("Accepting pending prerequisites", {
+      sessionId: activeSessionId,
+      parentTopicId: pendingReview.parentTopicId,
+      acceptedCount: accepted.length,
+      suggestedCount: pendingReview.suggested.length,
+    });
     void withActiveSession(async (sessionId) => {
       appStore.acceptPendingPrerequisites(sessionId, pendingReview.parentTopicId, accepted);
       return runLessonCycle(sessionId);
@@ -193,6 +244,10 @@ function App() {
       return;
     }
 
+    logger.info("Dismissing pending prerequisites", {
+      sessionId: activeSessionId,
+      parentTopicId: pendingReview.parentTopicId,
+    });
     void withActiveSession(async (sessionId) => {
       appStore.dismissPendingPrerequisites(sessionId, pendingReview.parentTopicId);
       return runLessonCycle(sessionId);
@@ -200,6 +255,7 @@ function App() {
   };
 
   const onDeleteSession = (sessionId: string) => {
+    logger.info("Deleting session", { sessionId, wasActive: activeSessionId === sessionId });
     try {
       const deletedActive = activeSessionId === sessionId;
       appStore.removeSession(sessionId);
@@ -216,7 +272,9 @@ function App() {
 
       setStartError(null);
       setFeedError(null);
+      logger.info("Session deleted", { sessionId, nextActiveId });
     } catch (error) {
+      logger.error("Failed to delete session", { sessionId, error });
       setFeedError(error instanceof Error ? error.message : "Unable to delete session");
     }
   };

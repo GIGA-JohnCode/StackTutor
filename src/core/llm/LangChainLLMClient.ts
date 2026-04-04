@@ -1,6 +1,7 @@
 import type { LLMClient } from "./LLMClient";
 import type { StepItem, TopicItem, TutorMessage } from "../types/domain";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { getLogger } from "../logging/Logger";
 import type { ModelProvider, ModelTask } from "../providers/ModelProvider";
 import { LLMOutputError } from "./LLMOutputError";
 import {
@@ -9,6 +10,8 @@ import {
   type DecomposeOutput,
   type PrerequisiteOutput,
 } from "./schemas";
+
+const logger = getLogger("LangChainLLMClient");
 
 // LLM layer implementation.
 // This class owns tutor operations and uses provider-supplied models underneath.
@@ -29,6 +32,11 @@ export class LangChainLLMClient implements LLMClient {
     maxItems: number;
     knownTopicsContext: string;
   }): Promise<PrerequisiteOutput> {
+    logger.info("Generating prerequisites", {
+      topic: input.topic.name,
+      maxItems: input.maxItems,
+      knownTopicsContextLength: input.knownTopicsContext.length,
+    });
     const model = this.getTaskModel("prerequisite");
     const maxItems = this.normalizeMaxItems(input.maxItems);
 
@@ -76,6 +84,11 @@ export class LangChainLLMClient implements LLMClient {
     stepCountHint?: number;
     knownTopicsContext: string;
   }): Promise<DecomposeOutput> {
+    logger.info("Decomposing topic", {
+      topic: input.topic.name,
+      stepCountHint: input.stepCountHint,
+      knownTopicsContextLength: input.knownTopicsContext.length,
+    });
     const model = this.getTaskModel("decompose");
     const stepCount = this.normalizeStepCount(input.stepCountHint);
 
@@ -126,6 +139,13 @@ export class LangChainLLMClient implements LLMClient {
     history: TutorMessage[];
     knownTopicsContext: string;
   }): Promise<string> {
+    logger.info("Completing step", {
+      topic: input.topic.name,
+      stepId: input.step.id,
+      mode: input.mode,
+      hasDoubt: Boolean(input.doubt?.trim()),
+      historyCount: input.history.length,
+    });
     const model = this.getTaskModel("teach");
 
     const systemPrompt = [
@@ -176,9 +196,11 @@ export class LangChainLLMClient implements LLMClient {
   private getTaskModel(task: ModelTask): BaseChatModel {
     const cached = this.modelCache[task];
     if (cached) {
+      logger.debug("Using cached task model", { task });
       return cached;
     }
 
+    logger.debug("Requesting new task model from provider", { task });
     const model = this.provider.getModel(task);
     this.modelCache[task] = model;
     return model;
@@ -207,17 +229,21 @@ export class LangChainLLMClient implements LLMClient {
     const attempts = Math.max(1, Math.trunc(input.attemptBudget));
 
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      logger.debug("Invoking model attempt", { attempt, attempts });
       const output = await input.execute(attempt);
       const validated = input.validate(output);
       if (validated !== null) {
+        logger.debug("Model output validated", { attempt });
         return validated;
       }
 
       if (attempt < attempts) {
+        logger.warn("Model output failed validation; retrying", { attempt, attempts });
         continue;
       }
     }
 
+    logger.error("Model output failed after retries", { attempts, failureMessage: input.failureMessage });
     throw new LLMOutputError(input.failureMessage);
   }
 
