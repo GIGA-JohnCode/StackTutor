@@ -35,6 +35,8 @@ export class LangChainLLMClient implements LLMClient {
     const systemPrompt = [
       "You generate immediate prerequisites for learning topics.",
       "The provided topic proficiency is the target end-state the learner wants to reach.",
+      "Use topic context to keep the scope specific to the target application area.",
+      "Each prerequisite must include a context field that explains what this prerequisite means in relation to the target topic, including what it relates to and what it does not cover.",
       "Return only independent, immediate prerequisites and avoid deep or redundant chains.",
       `Return at most ${String(maxItems)} prerequisites.`,
       "Use the known-topics context to avoid suggesting topics the user already knows.",
@@ -43,6 +45,7 @@ export class LangChainLLMClient implements LLMClient {
     const userPrompt = [
       `Target topic: ${input.topic.name}`,
       `Target topic proficiency: ${input.topic.proficiency}`,
+      `Target topic context: ${input.topic.context}`,
       "Known topics context:",
       input.knownTopicsContext,
       "Output prerequisites only.",
@@ -79,6 +82,7 @@ export class LangChainLLMClient implements LLMClient {
     const systemPrompt = [
       "You decompose a learning topic into practical bite-sized objectives.",
       "The provided topic proficiency is the target end-state the learner wants to reach.",
+      "Use the topic context to stay focused on the intended scope and avoid broad generic detours.",
       "Each step must include a short name and a detailed objective.",
       "Each objective should be concrete, ordered, and similar in size.",
       `Return around ${String(stepCount)} steps, with no duplicated objectives.`,
@@ -88,6 +92,7 @@ export class LangChainLLMClient implements LLMClient {
     const userPrompt = [
       `Topic: ${input.topic.name}`,
       `Target proficiency: ${input.topic.proficiency}`,
+      `Topic context: ${input.topic.context}`,
       "Known topics context:",
       input.knownTopicsContext,
       "Return an ordered list of steps.",
@@ -138,6 +143,7 @@ export class LangChainLLMClient implements LLMClient {
     const userPrompt = [
       `Topic: ${input.topic.name}`,
       `Target proficiency: ${input.topic.proficiency}`,
+      `Topic context: ${input.topic.context}`,
       `Step name: ${input.step.name}`,
       `Step objective: ${input.step.objective}`,
       modeDirective,
@@ -234,7 +240,8 @@ export class LangChainLLMClient implements LLMClient {
     return value.prerequisites.every((item) => {
       return this.isRecord(item)
         && typeof item.name === "string"
-        && this.isProficiency(item.proficiency);
+        && this.isProficiency(item.proficiency)
+        && typeof item.context === "string";
     });
   }
 

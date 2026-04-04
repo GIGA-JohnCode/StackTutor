@@ -35,9 +35,23 @@ export class TutorSession {
 
   static fromSnapshot(snapshot: TutorSessionSnapshot): TutorSession {
     // Rehydrate an existing session from repository data.
+    const normalizedStack = snapshot.stack.map((item) => ({
+      ...item,
+      topic: normalizeTopicContext(item.topic),
+    }));
+
+    const normalizedPending = snapshot.pendingPrerequisiteReview
+      ? {
+        ...snapshot.pendingPrerequisiteReview,
+        parentTopic: normalizeTopicContext(snapshot.pendingPrerequisiteReview.parentTopic),
+        suggested: snapshot.pendingPrerequisiteReview.suggested.map((item) => normalizeTopicContext(item)),
+      }
+      : null;
+
     return new TutorSession({
       ...snapshot,
-      pendingPrerequisiteReview: snapshot.pendingPrerequisiteReview ?? null,
+      stack: normalizedStack,
+      pendingPrerequisiteReview: normalizedPending,
     });
   }
 
@@ -155,6 +169,29 @@ export class TutorSession {
     this.touch();
   }
 
+  removeUpcomingStep(topicId: string, stepId: string): void {
+    const topic = this.snapshot.stack.find((item) => item.id === topicId);
+    if (!topic) {
+      throw new Error("Cannot remove step for missing stack topic");
+    }
+
+    const stepIndex = topic.steps.findIndex((step) => step.id === stepId);
+    if (stepIndex < 0) {
+      throw new Error("Cannot remove missing step");
+    }
+
+    if (stepIndex <= topic.activeStepIndex) {
+      throw new Error("Only upcoming steps can be removed");
+    }
+
+    if (topic.steps[stepIndex]?.completed) {
+      throw new Error("Completed steps cannot be removed");
+    }
+
+    topic.steps.splice(stepIndex, 1);
+    this.touch();
+  }
+
   appendMessage(message: TutorMessage): void {
     this.snapshot.feed.push(message);
     this.touch();
@@ -163,4 +200,19 @@ export class TutorSession {
   private touch(): void {
     this.snapshot.updatedAt = new Date().toISOString();
   }
+}
+
+function normalizeTopicContext(topic: TopicItem): TopicItem {
+  const normalized = topic.context?.trim().replace(/\s+/g, " ") ?? "";
+  if (normalized) {
+    return {
+      ...topic,
+      context: normalized,
+    };
+  }
+
+  return {
+    ...topic,
+    context: `General context for ${topic.name}`,
+  };
 }

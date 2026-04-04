@@ -19,6 +19,7 @@ export type MessageKind =
 export interface TopicItem {
   name: string;
   proficiency: ProficiencyLevel;
+  context: string;
 }
 
 export interface KnowledgeEntry {

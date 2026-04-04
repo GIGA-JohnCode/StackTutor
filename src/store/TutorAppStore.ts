@@ -66,6 +66,10 @@ export class TutorAppStore {
     this.settingsRepository.save(settings);
   }
 
+  getAvailableProviders(): string[] {
+    return ProviderFactory.getRegisteredNames().sort();
+  }
+
   isByokConfigured(): boolean {
     const settings = this.settingsRepository.get();
     return Boolean(settings.apiKey?.trim());
@@ -75,10 +79,11 @@ export class TutorAppStore {
     topic: string,
     maxDepth: number,
     rootProficiency: TopicItem["proficiency"],
+    rootContext?: string,
   ): TutorEngine {
     const settings = this.settingsRepository.get();
     if (!settings.apiKey?.trim()) {
-      throw new Error("Set your Groq API key in BYOK settings before starting a session.");
+      throw new Error("Set your provider API key in BYOK settings before starting a session.");
     }
 
     const provider = ProviderFactory.getProvider(settings.providerName, {
@@ -99,7 +104,7 @@ export class TutorAppStore {
       new PassThroughValidator(),
       this.knowledgeStore,
     );
-    engine.startWithRootTopic(topic, rootProficiency);
+    engine.startWithRootTopic(topic, rootProficiency, rootContext);
 
     this.sessionRepository.upsert(session.getSnapshot());
     this.sessionRepository.setActiveSessionId(session.getSnapshot().id);
@@ -226,6 +231,12 @@ export class TutorAppStore {
   moveStackItem(sessionId: string, fromIndex: number, toIndex: number): TutorSessionSnapshot {
     const engine = this.requireEngine(sessionId);
     engine.moveStackItem(fromIndex, toIndex);
+    return this.persistEngineSnapshot(engine);
+  }
+
+  removeUpcomingStep(sessionId: string, topicId: string, stepId: string): TutorSessionSnapshot {
+    const engine = this.requireEngine(sessionId);
+    engine.removeUpcomingStep(topicId, stepId);
     return this.persistEngineSnapshot(engine);
   }
 

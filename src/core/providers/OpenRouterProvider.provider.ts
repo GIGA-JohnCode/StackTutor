@@ -1,41 +1,41 @@
-import { ChatGroq } from "@langchain/groq";
+import { ChatOpenRouter } from "@langchain/openrouter";
 import { registerProvider } from "./ProviderFactory";
 import type { ModelProvider, ModelTask, ProviderConfig } from "./ModelProvider";
 
 // Provider only resolves model selection and initialization.
 // Operation logic belongs to src/core/llm.
-export class GroqProvider implements ModelProvider {
+export class OpenRouterProvider implements ModelProvider {
   private config: ProviderConfig;
 
   private readonly modelByTask: Record<ModelTask, string> = {
-    default: "llama-3.1-8b-instant",
-    chat: "llama-3.1-8b-instant",
-    prerequisite: "llama-3.1-8b-instant",
-    decompose: "llama-3.1-8b-instant",
-    teach: "llama-3.1-8b-instant",
-    summarize: "llama-3.1-8b-instant",
+    default: "openrouter/free",
+    chat: "openrouter/free",
+    prerequisite: "openrouter/free",
+    decompose: "openrouter/free",
+    teach: "openrouter/free",
+    summarize: "openrouter/free",
   };
 
   constructor(config?: ProviderConfig) {
     this.config = config ?? {};
   }
 
-  getModel(task: ModelTask = "default"): ChatGroq {
+  getModel(task: ModelTask = "default"): ChatOpenRouter {
     const resolvedTask = this.modelByTask[task] ? task : "default";
     const configuredModel = this.config.modelName?.trim();
     const modelName = configuredModel || this.modelByTask[resolvedTask];
     const apiKey = this.config.apiKey?.trim();
 
     if (!apiKey) {
-      throw new Error("Groq provider requires a non-empty API key.");
+      throw new Error("OpenRouter provider requires a non-empty API key.");
     }
 
     if (!modelName || modelName.includes(" ")) {
-      throw new Error(`Invalid Groq model name '${modelName}'.`);
+      throw new Error(`Invalid OpenRouter model name '${modelName}'.`);
     }
 
     try {
-      return new ChatGroq({
+      return new ChatOpenRouter({
         apiKey,
         model: modelName,
         temperature: 0.2,
@@ -44,11 +44,11 @@ export class GroqProvider implements ModelProvider {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown provider initialization error";
       throw new Error(
-        `Failed to initialize Groq model '${modelName}' for task '${resolvedTask}': ${message}`,
+        `Failed to initialize OpenRouter model '${modelName}' for task '${resolvedTask}': ${message}`,
       );
     }
   }
 }
 
 // Register at module load time. The provider loader imports this file automatically.
-registerProvider("groq")(GroqProvider);
+registerProvider("openrouter")(OpenRouterProvider);

@@ -32,12 +32,15 @@ export class TutorEngine {
     this.knowledgeStore = knowledgeStore;
   }
 
-  startWithRootTopic(topic: string, proficiency: TopicItem["proficiency"]): void {
+  startWithRootTopic(topic: string, proficiency: TopicItem["proficiency"], context?: string): void {
+    const normalizedContext = context?.trim();
+
     const root: StackItem = {
       id: `topic:${topic.toLowerCase()}`,
       topic: {
         name: topic,
         proficiency,
+        context: normalizedContext || this.buildRootTopicContext(topic),
       },
       depth: 0,
       prerequisitesSearched: false,
@@ -137,6 +140,19 @@ export class TutorEngine {
 
   moveStackItem(fromIndex: number, toIndex: number): void {
     this.session.reorderStack(fromIndex, toIndex);
+  }
+
+  removeUpcomingStep(topicId: string, stepId: string): void {
+    const top = this.session.getTopStackItem();
+    if (!top) {
+      throw new Error("No active topic to remove step from");
+    }
+
+    if (top.id !== topicId) {
+      throw new Error("Only steps from the top topic can be removed");
+    }
+
+    this.session.removeUpcomingStep(topicId, stepId);
   }
 
   async decomposeTopIfNeeded(stepCountHint?: number): Promise<StepItem[]> {
@@ -282,7 +298,12 @@ export class TutorEngine {
     }
 
     if (top.steps.length === 0) {
-      throw new Error("Cannot proceed before decomposition and teaching");
+      // If the top was manually changed (remove/reorder), let caller continue
+      // into normal expansion/decompose/teach flow instead of hard failing.
+      return {
+        advanced: false,
+        sessionCompleted: false,
+      };
     }
 
     const activeIndex = top.activeStepIndex;
@@ -304,7 +325,7 @@ export class TutorEngine {
 
     const completedTopic = top.topic;
     this.session.popTopStackItem();
-    this.knowledgeStore.upsert(completedTopic.name, completedTopic.proficiency);
+    this.knowledgeStore.upsert(completedTopic.name, completedTopic.proficiency, completedTopic.context);
 
     const pending = this.session.getPendingPrerequisiteReview();
     if (pending && pending.parentTopicId === top.id) {
@@ -382,5 +403,9 @@ export class TutorEngine {
 
   private newMessageId(): string {
     return `msg:${crypto.randomUUID()}`;
+  }
+
+  private buildRootTopicContext(topic: string): string {
+    return `Learning scope focused on ${topic} and its direct practical usage.`;
   }
 }

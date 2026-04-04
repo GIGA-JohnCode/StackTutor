@@ -4,6 +4,7 @@ export type PrerequisiteOutput = {
   prerequisites: Array<{
     name: string;
     proficiency: ProficiencyLevel;
+    context: string;
   }>;
 };
 
@@ -24,13 +25,14 @@ export const PREREQUISITE_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "proficiency"],
+        required: ["name", "proficiency", "context"],
         properties: {
           name: { type: "string" },
           proficiency: {
             type: "string",
             enum: ["beginner", "intermediate", "advanced", "expert"],
           },
+          context: { type: "string" },
         },
       },
     },

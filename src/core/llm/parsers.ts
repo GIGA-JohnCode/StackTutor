@@ -29,6 +29,7 @@ export function parsePrerequisites(
     topics.push({
       name,
       proficiency: normalizeProficiency(item.proficiency),
+      context: normalizeTopicContext(item.context, name),
     });
 
     if (topics.length >= maxItems) {
@@ -85,6 +86,15 @@ export function parseDecompositionSteps(
 
 function normalizeTopicName(raw: string): string {
   return raw.trim().replace(/\s+/g, " ");
+}
+
+function normalizeTopicContext(raw: string, topicName: string): string {
+  const normalized = normalizeTopicName(raw);
+  if (normalized) {
+    return normalized;
+  }
+
+  return `Context for ${topicName}`;
 }
 
 function normalizeStepName(raw: string): string {

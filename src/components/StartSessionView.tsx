@@ -7,6 +7,7 @@ interface StartSessionViewProps {
     topic: string,
     maxDepth: number,
     rootProficiency: TopicItem["proficiency"],
+    rootContext?: string,
   ) => void;
 }
 
@@ -15,6 +16,7 @@ export function StartSessionView(props: StartSessionViewProps) {
   const [topic, setTopic] = useState("");
   const [maxDepth, setMaxDepth] = useState(2);
   const [rootProficiency, setRootProficiency] = useState<TopicItem["proficiency"]>("beginner");
+  const [rootContext, setRootContext] = useState("");
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -22,7 +24,8 @@ export function StartSessionView(props: StartSessionViewProps) {
     if (!normalized) {
       return;
     }
-    onStartSession(normalized, maxDepth, rootProficiency);
+    const normalizedContext = rootContext.trim();
+    onStartSession(normalized, maxDepth, rootProficiency, normalizedContext || undefined);
   };
 
   return (
@@ -62,6 +65,15 @@ export function StartSessionView(props: StartSessionViewProps) {
           <option value="advanced">Advanced</option>
           <option value="expert">Expert</option>
         </select>
+
+        <label className="text-sm text-slate-700" htmlFor="root-context-input">Optional context</label>
+        <textarea
+          className="min-h-24 rounded-lg border border-slate-300 px-2 py-2 text-slate-900"
+          id="root-context-input"
+          value={rootContext}
+          onChange={(event) => setRootContext(event.target.value)}
+          placeholder="e.g. I need recommender systems for e-commerce product ranking and personalization."
+        />
 
         <button
           className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-left text-slate-900"
