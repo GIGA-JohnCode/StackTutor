@@ -1,6 +1,9 @@
 import { STORAGE_KEYS } from "./StorageKeys";
+import { getLogger } from "../logging/Logger";
 import type { SessionRepository } from "./SessionRepository";
 import type { SessionListItem, TutorSessionSnapshot } from "../types/domain";
+
+const logger = getLogger("LocalSessionRepository");
 
 // LocalStorage implementation for session list/detail retrieval.
 export class LocalSessionRepository implements SessionRepository {
@@ -17,6 +20,8 @@ export class LocalSessionRepository implements SessionRepository {
 
   upsert(session: TutorSessionSnapshot): void {
     this.migrateLegacyStoreIfNeeded();
+
+    logger.debug("Upserting session", { sessionId: session.id, status: session.status });
 
     const data = this.readData();
     data[session.id] = session;
@@ -44,6 +49,8 @@ export class LocalSessionRepository implements SessionRepository {
   remove(sessionId: string): void {
     this.migrateLegacyStoreIfNeeded();
 
+    logger.info("Removing session", { sessionId });
+
     const data = this.readData();
     delete data[sessionId];
     this.writeData(data);
@@ -62,10 +69,12 @@ export class LocalSessionRepository implements SessionRepository {
 
   setActiveSessionId(sessionId: string | null): void {
     if (!sessionId) {
+      logger.debug("Clearing active session id");
       localStorage.removeItem(STORAGE_KEYS.activeSessionId);
       return;
     }
 
+    logger.debug("Setting active session id", { sessionId });
     localStorage.setItem(STORAGE_KEYS.activeSessionId, sessionId);
   }
 
@@ -78,6 +87,7 @@ export class LocalSessionRepository implements SessionRepository {
     try {
       return JSON.parse(raw) as SessionListItem[];
     } catch {
+      logger.warn("Failed to parse session index; returning empty list");
       return [];
     }
   }
@@ -95,6 +105,7 @@ export class LocalSessionRepository implements SessionRepository {
     try {
       return JSON.parse(raw) as Record<string, TutorSessionSnapshot>;
     } catch {
+      logger.warn("Failed to parse session data; returning empty map");
       return {};
     }
   }
@@ -112,6 +123,7 @@ export class LocalSessionRepository implements SessionRepository {
     try {
       return JSON.parse(raw) as TutorSessionSnapshot[];
     } catch {
+      logger.warn("Failed to parse legacy sessions store; returning empty list");
       return [];
     }
   }
@@ -129,6 +141,8 @@ export class LocalSessionRepository implements SessionRepository {
       return;
     }
 
+    logger.info("Migrating legacy sessions store", { sessionCount: legacy.length });
+
     const data: Record<string, TutorSessionSnapshot> = {};
     const index: SessionListItem[] = legacy.map((session) => {
       data[session.id] = session;
@@ -143,5 +157,6 @@ export class LocalSessionRepository implements SessionRepository {
     index.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     this.writeData(data);
     this.writeIndex(index);
+    logger.info("Legacy session migration complete", { sessionCount: index.length });
   }
 }

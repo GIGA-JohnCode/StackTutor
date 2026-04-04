@@ -1,3 +1,8 @@
+export interface ProviderCredentialSettings {
+  apiKey?: string;
+  modelName?: string;
+}
+
 export interface AppSettings {
   // BYOK model provider, ex: groq.
   providerName: string;
@@ -5,6 +10,8 @@ export interface AppSettings {
   // NOTE: This is acceptable for BYOK but should never be hardcoded in source.
   apiKey?: string;
   modelName?: string;
+  // Provider-scoped credentials to preserve keys/models across provider switches.
+  providerSettings?: Record<string, ProviderCredentialSettings>;
 }
 
 // Repository contract for app-level settings.

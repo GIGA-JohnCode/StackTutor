@@ -19,6 +19,7 @@ export type MessageKind =
 export interface TopicItem {
   name: string;
   proficiency: ProficiencyLevel;
+  context: string;
 }
 
 export interface KnowledgeEntry {
@@ -41,6 +42,7 @@ export interface StackItem {
 
 export interface StepItem {
   id: string;
+  name: string;
   objective: string;
   completed: boolean;
 }
@@ -65,11 +67,14 @@ export interface TutorSessionSnapshot {
   updatedAt: string;
   stack: StackItem[];
   feed: TutorMessage[];
+  pendingPrerequisiteReview: PendingPrerequisiteReview | null;
 }
 
-export interface PrerequisiteCandidate {
-  topic: string;
-  rationale?: string;
+export interface PendingPrerequisiteReview {
+  parentTopicId: string;
+  parentTopic: TopicItem;
+  suggested: TopicItem[];
+  createdAt: string;
 }
 
 export interface SessionListItem {

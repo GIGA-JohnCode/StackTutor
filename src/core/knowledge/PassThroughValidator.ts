@@ -1,17 +1,10 @@
 import type { KnowledgeValidator } from "./KnowledgeValidator";
-import type { KnowledgeEntry, PrerequisiteCandidate } from "../types/domain";
+import type { TopicItem } from "../types/domain";
 
-// Initial validator implementation.
-// For now it removes obvious exact matches against known topics and returns the rest.
+// Current validator is intentionally a strict no-op pass-through.
+// Filtering logic will be added in a later iteration.
 export class PassThroughValidator implements KnowledgeValidator {
-  validatePrerequisites(
-    generated: PrerequisiteCandidate[],
-    knownTopics: Record<string, KnowledgeEntry>,
-  ): PrerequisiteCandidate[] {
-    const knownTopicNames = new Set(
-      Object.values(knownTopics).map((entry) => entry.topic.name.toLowerCase()),
-    );
-
-    return generated.filter((item) => !knownTopicNames.has(item.topic.toLowerCase()));
+  validatePrerequisites(generated: TopicItem[]): TopicItem[] {
+    return generated;
   }
 }

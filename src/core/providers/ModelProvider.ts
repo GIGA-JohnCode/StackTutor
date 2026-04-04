@@ -1,6 +1,8 @@
 // Provider layer contract.
 // A provider only configures and returns a model instance for a requested task.
 
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+
 export type ModelTask =
   | "default"
   | "chat"
@@ -14,9 +16,6 @@ export interface ProviderConfig {
   modelName?: string;
 }
 
-// Keep this broad until a concrete LangChain model package is wired in.
-export type ChatModelLike = unknown;
-
 export interface ModelProvider {
-  getModel(task?: ModelTask): ChatModelLike;
+  getModel(task?: ModelTask): BaseChatModel;
 }

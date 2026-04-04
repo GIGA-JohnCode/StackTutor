@@ -1,14 +1,22 @@
 import { useState } from "react";
+import type { TopicItem } from "../core/types/domain";
 
 // Initial landing view that lets the user define what to learn and max prerequisite depth.
 interface StartSessionViewProps {
-  onStartSession: (topic: string, maxDepth: number) => void;
+  onStartSession: (
+    topic: string,
+    maxDepth: number,
+    rootProficiency: TopicItem["proficiency"],
+    rootContext?: string,
+  ) => void;
 }
 
 export function StartSessionView(props: StartSessionViewProps) {
   const { onStartSession } = props;
   const [topic, setTopic] = useState("");
   const [maxDepth, setMaxDepth] = useState(2);
+  const [rootProficiency, setRootProficiency] = useState<TopicItem["proficiency"]>("beginner");
+  const [rootContext, setRootContext] = useState("");
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -16,7 +24,8 @@ export function StartSessionView(props: StartSessionViewProps) {
     if (!normalized) {
       return;
     }
-    onStartSession(normalized, maxDepth);
+    const normalizedContext = rootContext.trim();
+    onStartSession(normalized, maxDepth, rootProficiency, normalizedContext || undefined);
   };
 
   return (
@@ -43,6 +52,28 @@ export function StartSessionView(props: StartSessionViewProps) {
           <option value={2}>2</option>
           <option value={3}>3</option>
         </select>
+
+        <label className="text-sm text-slate-700" htmlFor="root-proficiency-input">Root topic proficiency</label>
+        <select
+          className="rounded-lg border border-slate-300 px-2 py-2 text-slate-900"
+          id="root-proficiency-input"
+          value={rootProficiency}
+          onChange={(event) => setRootProficiency(event.target.value as TopicItem["proficiency"])}
+        >
+          <option value="beginner">Beginner</option>
+          <option value="intermediate">Intermediate</option>
+          <option value="advanced">Advanced</option>
+          <option value="expert">Expert</option>
+        </select>
+
+        <label className="text-sm text-slate-700" htmlFor="root-context-input">Optional context</label>
+        <textarea
+          className="min-h-24 rounded-lg border border-slate-300 px-2 py-2 text-slate-900"
+          id="root-context-input"
+          value={rootContext}
+          onChange={(event) => setRootContext(event.target.value)}
+          placeholder="e.g. I need recommender systems for e-commerce product ranking and personalization."
+        />
 
         <button
           className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-left text-slate-900"
