@@ -49,11 +49,11 @@ export function RightSidebar(props: RightSidebarProps) {
               return (
                 <div key={item.id} className="st-topic-card">
                   <div className="flex justify-between gap-2">
-                    <div>
-                      <div className="font-semibold text-sm">{item.topic.name}</div>
+                    <div className="min-w-0">
+                      <div className="break-words font-semibold text-sm leading-tight">{item.topic.name}</div>
                       <small className="st-subtitle">Depth {item.depth}</small>
                     </div>
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex shrink-0 flex-nowrap gap-1">
                       <button
                         className="st-button st-button--ghost st-icon-btn"
                         type="button"

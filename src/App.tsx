@@ -379,16 +379,18 @@ function App() {
           ) : null}
         </main>
       ) : (
-        <MainFeed
-          session={activeSession}
-          error={feedError}
-          isBusy={isBusy}
-          statusMessage={operationStatus}
-          onStartLesson={onStartLesson}
-          onProceed={onProceed}
-          onRetry={onRetry}
-          onDoubt={onDoubt}
-        />
+        <div className="st-feed-slot st-panel">
+          <MainFeed
+            session={activeSession}
+            error={feedError}
+            isBusy={isBusy}
+            statusMessage={operationStatus}
+            onStartLesson={onStartLesson}
+            onProceed={onProceed}
+            onRetry={onRetry}
+            onDoubt={onDoubt}
+          />
+        </div>
       )}
 
       {!isStartView ? (

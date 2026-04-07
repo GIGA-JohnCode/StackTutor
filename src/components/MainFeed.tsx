@@ -31,7 +31,7 @@ export function MainFeed(props: MainFeedProps) {
   const [doubtTargetMessageId, setDoubtTargetMessageId] = useState<string | null>(null);
   const [doubtText, setDoubtText] = useState("");
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
-  const feedContainerRef = useRef<HTMLElement | null>(null);
+  const feedContainerRef = useRef<HTMLDivElement | null>(null);
 
   const copyCode = async (code: string, codeId: string) => {
     try {
@@ -58,12 +58,13 @@ export function MainFeed(props: MainFeedProps) {
     : null;
 
   return (
-    <main ref={feedContainerRef} className="st-panel st-feed st-enter">
+    <main className="st-panel st-feed st-enter">
       <h2 className="st-title">Tutor Feed</h2>
-      {!session ? (
-        <p className="st-subtitle">Select a session or create a new one.</p>
-      ) : (
-        <div className="st-feed-list">
+      <div ref={feedContainerRef} className="st-feed-scroll">
+        {!session ? (
+          <p className="st-subtitle">Select a session or create a new one.</p>
+        ) : (
+          <div className="st-feed-list">
           {session.feed.length === 0 ? (
             <div className="flex flex-col gap-2">
               <p className="st-subtitle">No tutor messages yet.</p>
@@ -213,19 +214,20 @@ export function MainFeed(props: MainFeedProps) {
               </article>
             ))
           )}
-          {isBusy ? (
-            <div className="st-banner" aria-live="polite">
-              <span className="st-banner-dot" aria-hidden="true" />
-              <span>{statusMessage ?? "Working..."}</span>
-            </div>
-          ) : null}
-          {error ? (
-            <div className="st-error">
-              {error}
-            </div>
-          ) : null}
-        </div>
-      )}
+            {isBusy ? (
+              <div className="st-banner" aria-live="polite">
+                <span className="st-banner-dot" aria-hidden="true" />
+                <span>{statusMessage ?? "Working..."}</span>
+              </div>
+            ) : null}
+            {error ? (
+              <div className="st-error">
+                {error}
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
     </main>
   );
 }
