@@ -7,11 +7,12 @@ interface ByokSettingsPanelProps {
   initialSettings: AppSettings;
   providerOptions: string[];
   onSave: (settings: AppSettings) => void;
+  showHeader?: boolean;
 }
 
 // Scaffold-only BYOK form. This persists user settings but does not validate keys against the API yet.
 export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
-  const { initialSettings, providerOptions, onSave } = props;
+  const { initialSettings, providerOptions, onSave, showHeader = true } = props;
   const normalizedProviderOptions = providerOptions.length > 0 ? providerOptions : ["groq"];
   const normalizedInitialProvider = initialSettings.providerName.trim().toLowerCase();
   const resolvedInitialProvider = normalizedProviderOptions.includes(normalizedInitialProvider)
@@ -127,12 +128,13 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
   };
 
   return (
-    <section className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-sky-50 p-3">
-      <h2 className="text-lg font-semibold">BYOK Settings</h2>
-      <form onSubmit={onSubmit} className="grid grid-cols-1 gap-2">
-        <label className="text-sm text-slate-700" htmlFor="provider-name-input">Provider</label>
+    <section className="st-panel st-enter flex flex-col gap-2 p-3">
+      {showHeader ? <h2 className="st-title">BYOK Settings</h2> : null}
+      {showHeader ? <p className="st-subtitle">Configure provider credentials used by your local browser session.</p> : null}
+      <form onSubmit={onSubmit} className="st-form-grid">
+        <label className="st-label" htmlFor="provider-name-input">Provider</label>
         <select
-          className="rounded-lg border border-slate-300 px-2 py-2 text-slate-900"
+          className="st-select"
           id="provider-name-input"
           value={providerName}
           onChange={(event) => {
@@ -149,9 +151,9 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
           ))}
         </select>
 
-        <label className="text-sm text-slate-700" htmlFor="model-name-input">Default model (optional)</label>
+        <label className="st-label" htmlFor="model-name-input">Default model (optional)</label>
         <input
-          className="rounded-lg border border-slate-300 px-2 py-2 text-slate-900"
+          className="st-input"
           id="model-name-input"
           value={modelName}
           onChange={(event) => {
@@ -172,9 +174,9 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
           placeholder={modelPlaceholder}
         />
 
-        <label className="text-sm text-slate-700" htmlFor="api-key-input">{providerLabel} API key</label>
+        <label className="st-label" htmlFor="api-key-input">{providerLabel} API key</label>
         <input
-          className="rounded-lg border border-slate-300 px-2 py-2 text-slate-900"
+          className="st-input"
           id="api-key-input"
           type="password"
           value={apiKey}
@@ -197,13 +199,13 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
         />
 
         <button
-          className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-left text-slate-900"
+          className="st-button st-button--primary text-center"
           type="submit"
         >
-          Save BYOK Settings
+          Save
         </button>
       </form>
-      {saved ? <p className="text-sm text-slate-500">Saved to local settings.</p> : null}
+      {saved ? <p className="st-subtitle">Saved to local settings.</p> : null}
     </section>
   );
 }

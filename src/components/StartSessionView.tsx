@@ -29,21 +29,22 @@ export function StartSessionView(props: StartSessionViewProps) {
   };
 
   return (
-    <section className="flex flex-col justify-center gap-2">
-      <h1 className="text-xl font-semibold">Start New Session</h1>
-      <form onSubmit={onSubmit} className="flex max-w-105 flex-col gap-2">
-        <label className="text-sm text-slate-700" htmlFor="topic-input">What do you want to learn?</label>
+    <section className="st-panel st-enter flex flex-col justify-center gap-2 p-3">
+      <h1 className="st-title text-xl">Start New Session</h1>
+      <p className="st-subtitle">Define your learning target and Stack Tutor will build the path.</p>
+      <form onSubmit={onSubmit} className="st-form-grid max-w-110">
+        <label className="st-label" htmlFor="topic-input">What do you want to learn?</label>
         <input
-          className="rounded-lg border border-slate-300 px-2 py-2 text-slate-900"
+          className="st-input"
           id="topic-input"
           value={topic}
           onChange={(event) => setTopic(event.target.value)}
           placeholder="e.g. Dynamic Programming"
         />
 
-        <label className="text-sm text-slate-700" htmlFor="depth-input">Max prerequisite depth</label>
+        <label className="st-label" htmlFor="depth-input">Max prerequisite depth</label>
         <select
-          className="rounded-lg border border-slate-300 px-2 py-2 text-slate-900"
+          className="st-select"
           id="depth-input"
           value={maxDepth}
           onChange={(event) => setMaxDepth(Number(event.target.value))}
@@ -53,9 +54,9 @@ export function StartSessionView(props: StartSessionViewProps) {
           <option value={3}>3</option>
         </select>
 
-        <label className="text-sm text-slate-700" htmlFor="root-proficiency-input">Root topic proficiency</label>
+        <label className="st-label" htmlFor="root-proficiency-input">Root topic proficiency</label>
         <select
-          className="rounded-lg border border-slate-300 px-2 py-2 text-slate-900"
+          className="st-select"
           id="root-proficiency-input"
           value={rootProficiency}
           onChange={(event) => setRootProficiency(event.target.value as TopicItem["proficiency"])}
@@ -66,9 +67,9 @@ export function StartSessionView(props: StartSessionViewProps) {
           <option value="expert">Expert</option>
         </select>
 
-        <label className="text-sm text-slate-700" htmlFor="root-context-input">Optional context</label>
+        <label className="st-label" htmlFor="root-context-input">Optional context</label>
         <textarea
-          className="min-h-24 rounded-lg border border-slate-300 px-2 py-2 text-slate-900"
+          className="st-textarea"
           id="root-context-input"
           value={rootContext}
           onChange={(event) => setRootContext(event.target.value)}
@@ -76,7 +77,7 @@ export function StartSessionView(props: StartSessionViewProps) {
         />
 
         <button
-          className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-left text-slate-900"
+          className="st-button st-button--primary text-left"
           type="submit"
         >
           Start Session

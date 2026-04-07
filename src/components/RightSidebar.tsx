@@ -33,11 +33,11 @@ export function RightSidebar(props: RightSidebarProps) {
   }, [topTopicId]);
 
   return (
-    <aside className="flex h-full min-h-0 flex-col gap-2.5 overflow-hidden rounded-xl border border-slate-200 bg-white p-3">
-      <h2 className="text-lg font-semibold">Stack</h2>
-      <div ref={listRef} className="min-h-0 flex-1 overflow-auto pr-1">
+    <aside className="st-panel st-sidebar st-enter">
+      <h2 className="st-title">Learning Stack</h2>
+      <div ref={listRef} className="st-scroll">
         {stack.length === 0 ? (
-          <p className="text-sm text-slate-500">No items in stack.</p>
+          <p className="st-subtitle">No items in stack.</p>
         ) : (
           <div className="flex flex-col gap-2">
             {reversedStack.map((item, index) => {
@@ -47,45 +47,51 @@ export function RightSidebar(props: RightSidebarProps) {
               const isTop = sourceIndex === stack.length - 1;
 
               return (
-                <div key={item.id} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                <div key={item.id} className="st-topic-card">
                   <div className="flex justify-between gap-2">
                     <div>
-                      <div>{item.topic.name}</div>
-                      <small className="text-xs text-slate-600">Depth {item.depth}</small>
+                      <div className="font-semibold text-sm">{item.topic.name}</div>
+                      <small className="st-subtitle">Depth {item.depth}</small>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-1">
                       <button
-                        className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="st-button st-button--ghost st-icon-btn"
                         type="button"
                         onClick={() => onMoveItem?.(sourceIndex, sourceIndex - 1)}
                         disabled={isBusy || !canMoveDown}
+                        aria-label="Move topic down"
+                        title="Move topic down"
                       >
-                        Down
+                        ↓
                       </button>
                       <button
-                        className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="st-button st-button--ghost st-icon-btn"
                         type="button"
                         onClick={() => onMoveItem?.(sourceIndex, sourceIndex + 1)}
                         disabled={isBusy || !canMoveUp}
+                        aria-label="Move topic up"
+                        title="Move topic up"
                       >
-                        Up
+                        ↑
                       </button>
                       <button
-                        className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="st-button st-button--danger st-icon-btn st-icon-btn--danger"
                         type="button"
                         onClick={() => onRemoveItem?.(item.id)}
                         disabled={isBusy}
+                        aria-label="Remove topic from stack"
+                        title="Remove topic from stack"
                       >
-                        Remove
+                        ×
                       </button>
                     </div>
                   </div>
 
                   {isTop ? (
-                    <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2">
-                      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Steps</div>
+                    <div className="st-step-list">
+                      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Active Topic Steps</div>
                       {item.steps.length === 0 ? (
-                        <p className="text-xs text-slate-500">No steps yet for this topic.</p>
+                        <p className="st-subtitle text-xs">No steps yet for this topic.</p>
                       ) : (
                         <ol className="flex flex-col gap-1">
                           {item.steps.map((step, stepIndex) => {
@@ -98,24 +104,25 @@ export function RightSidebar(props: RightSidebarProps) {
                                 key={step.id}
                                 className={
                                   isCurrentStep
-                                    ? "rounded border border-sky-300 bg-sky-50 px-2 py-1 text-xs text-sky-900"
-                                    : "rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700"
+                                    ? "st-step-item st-step-item--current"
+                                    : "st-step-item"
                                 }
                               >
                                 <div className="flex items-center justify-between gap-2">
                                   <span>{step.name}</span>
-                                  <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide">
+                                  <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide">
                                     {isCurrentStep ? <span className="text-sky-700">Current</span> : null}
                                     {step.completed ? <span className="text-emerald-700">Done</span> : null}
                                     {canRemoveStep ? (
                                       <button
-                                        className="cursor-pointer rounded border border-red-300 bg-red-50 px-1.5 py-0.5 text-[10px] text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                        className="st-button st-button--danger st-icon-btn st-icon-btn--danger st-icon-btn--compact"
                                         type="button"
                                         onClick={() => onRemoveUpcomingStep?.(item.id, step.id)}
                                         title="Remove step"
                                         disabled={isBusy}
+                                        aria-label="Remove step"
                                       >
-                                        x
+                                        ×
                                       </button>
                                     ) : null}
                                   </div>

@@ -15,6 +15,8 @@ function App() {
   const appStore = useMemo(() => new TutorAppStore(), []);
   const providerOptions = useMemo(() => appStore.getAvailableProviders(), [appStore]);
   const [isStartView, setIsStartView] = useState(true);
+  const [isByokOpen, setIsByokOpen] = useState(false);
+  const [byokSavedMessage, setByokSavedMessage] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionListItem[]>(() => appStore.getSessionList());
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() => appStore.getActiveSessionId());
   const [activeSession, setActiveSession] = useState<TutorSessionSnapshot | null>(() => {
@@ -39,9 +41,7 @@ function App() {
 
     return pendingSelectionByReview[pendingReviewKey] ?? pendingReview.suggested.map(() => true);
   }, [pendingReview, pendingReviewKey, pendingSelectionByReview]);
-  const layoutClassName = isStartView
-    ? "grid h-screen grid-cols-1 gap-3 overflow-hidden bg-slate-50 p-3 text-slate-900 lg:grid-cols-[280px_minmax(0,1fr)]"
-    : "grid h-screen grid-cols-1 gap-3 overflow-hidden bg-slate-50 p-3 text-slate-900 lg:grid-cols-[280px_minmax(0,1fr)_320px]";
+  const layoutClassName = isStartView ? "st-shell st-shell--start" : "st-shell st-shell--session";
 
   useEffect(() => {
     logger.info("App state snapshot", {
@@ -116,6 +116,11 @@ function App() {
     if (nextSettings.apiKey?.trim()) {
       setStartError(null);
     }
+    setIsByokOpen(false);
+    setByokSavedMessage("BYOK settings saved.");
+    window.setTimeout(() => {
+      setByokSavedMessage((current) => (current === "BYOK settings saved." ? null : current));
+    }, 2200);
   };
 
   const runLessonCycle = async (
@@ -326,17 +331,52 @@ function App() {
       />
 
       {isStartView ? (
-        <main className="flex h-full min-h-0 flex-col gap-3 overflow-auto rounded-xl border border-slate-200 bg-white p-3">
-          <ByokSettingsPanel
-            initialSettings={settings}
-            providerOptions={providerOptions}
-            onSave={saveByokSettings}
-          />
+        <main className="st-panel st-main-stage st-enter flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="st-subtitle">Use BYOK settings before starting your first learning session.</p>
+            <button
+              type="button"
+              className="st-button st-button--ghost st-gear-button"
+              onClick={() => setIsByokOpen(true)}
+              aria-label="Open BYOK settings"
+              title="Open BYOK settings"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="st-gear-icon">
+                <path d="M12 8.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0-7Zm9 3.5a7.9 7.9 0 0 0-.08-1l2.03-1.58l-1.8-3.12l-2.48.86a8.1 8.1 0 0 0-1.74-1.01l-.38-2.59h-3.6l-.38 2.59a8.1 8.1 0 0 0-1.74 1.01l-2.48-.86l-1.8 3.12L3.08 11a8.8 8.8 0 0 0 0 2l-2.03 1.58l1.8 3.12l2.48-.86c.54.42 1.12.76 1.74 1.01l.38 2.59h3.6l.38-2.59c.62-.25 1.2-.59 1.74-1.01l2.48.86l1.8-3.12L20.92 13c.06-.33.08-.66.08-1Z" />
+              </svg>
+              BYOK
+            </button>
+          </div>
+
           <StartSessionView onStartSession={startSession} />
           {!appStore.isByokConfigured() ? (
-            <p className="text-sm text-slate-500">Set your provider API key above before starting a session.</p>
+            <p className="st-subtitle">Set your provider API key via the BYOK gear button before starting a session.</p>
           ) : null}
-          {startError ? <p className="text-sm text-red-700">{startError}</p> : null}
+          {startError ? <p className="st-error">{startError}</p> : null}
+
+          {isByokOpen ? (
+            <div className="st-modal-backdrop" onClick={() => setIsByokOpen(false)}>
+              <div className="st-modal st-byok-modal" onClick={(event) => event.stopPropagation()}>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="st-title">BYOK Settings</h3>
+                  <button
+                    type="button"
+                    className="st-button st-button--danger"
+                    onClick={() => setIsByokOpen(false)}
+                    aria-label="Close BYOK settings"
+                  >
+                    ×
+                  </button>
+                </div>
+                <ByokSettingsPanel
+                  initialSettings={settings}
+                  providerOptions={providerOptions}
+                  onSave={saveByokSettings}
+                  showHeader={false}
+                />
+              </div>
+            </div>
+          ) : null}
         </main>
       ) : (
         <MainFeed
@@ -362,17 +402,17 @@ function App() {
       ) : null}
 
       {!isStartView && pendingReview && pendingReview.suggested.length > 0 ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4">
-          <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-4 shadow-lg">
-            <h3 className="text-lg font-semibold">Review Prerequisites</h3>
-            <p className="mt-1 text-sm text-slate-600">
+        <div className="st-modal-backdrop">
+          <div className="st-modal">
+            <h3 className="st-title">Review Prerequisites</h3>
+            <p className="st-subtitle mt-1">
               Select prerequisites to add for {pendingReview.parentTopic.name}.
             </p>
-            <div className="mt-3 max-h-72 overflow-auto rounded-lg border border-slate-200">
+            <div className="st-check-list">
               {pendingReview.suggested.map((item, index) => (
                 <label
                   key={`${pendingReview.parentTopicId}:${item.name}:${index}`}
-                  className="flex cursor-pointer items-center justify-between gap-2 border-b border-slate-200 px-3 py-2 last:border-b-0"
+                  className="st-check-row"
                 >
                   <div className="flex items-center gap-2">
                     <input
@@ -387,13 +427,13 @@ function App() {
               ))}
             </div>
             {isBusy && operationStatus ? (
-              <p className="mt-2 text-sm text-sky-700" aria-live="polite">
+              <p className="st-banner mt-2" aria-live="polite">
                 {operationStatus}
               </p>
             ) : null}
             <div className="mt-3 flex gap-2">
               <button
-                className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                className="st-button st-button--primary"
                 type="button"
                 onClick={onAcceptPendingSuggestions}
                 disabled={isBusy}
@@ -401,7 +441,7 @@ function App() {
                 Apply Selected
               </button>
               <button
-                className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                className="st-button st-button--ghost"
                 type="button"
                 onClick={onDismissPendingSuggestions}
                 disabled={isBusy}
@@ -410,6 +450,12 @@ function App() {
               </button>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {byokSavedMessage ? (
+        <div className="st-toast-wrap" aria-live="polite">
+          <p className="st-success-banner">{byokSavedMessage}</p>
         </div>
       ) : null}
     </div>

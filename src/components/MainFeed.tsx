@@ -30,7 +30,20 @@ export function MainFeed(props: MainFeedProps) {
   } = props;
   const [doubtTargetMessageId, setDoubtTargetMessageId] = useState<string | null>(null);
   const [doubtText, setDoubtText] = useState("");
+  const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
   const feedContainerRef = useRef<HTMLElement | null>(null);
+
+  const copyCode = async (code: string, codeId: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCodeId(codeId);
+      window.setTimeout(() => {
+        setCopiedCodeId((current) => (current === codeId ? null : current));
+      }, 1400);
+    } catch {
+      setCopiedCodeId(null);
+    }
+  };
 
   useEffect(() => {
     if (!session || session.feed.length === 0 || !feedContainerRef.current) {
@@ -40,18 +53,22 @@ export function MainFeed(props: MainFeedProps) {
     feedContainerRef.current.scrollTop = feedContainerRef.current.scrollHeight;
   }, [session?.feed.length, error, isBusy, statusMessage]);
 
+  const latestActionableMessageId = session
+    ? [...session.feed].reverse().find((item) => item.role !== "user")?.id ?? null
+    : null;
+
   return (
-    <main ref={feedContainerRef} className="h-full min-h-0 overflow-auto rounded-xl border border-slate-200 bg-white p-3">
-      <h2 className="text-lg font-semibold">Tutor Feed</h2>
+    <main ref={feedContainerRef} className="st-panel st-feed st-enter">
+      <h2 className="st-title">Tutor Feed</h2>
       {!session ? (
-        <p className="text-sm text-slate-500">Select a session or create a new one.</p>
+        <p className="st-subtitle">Select a session or create a new one.</p>
       ) : (
-        <div className="mt-2 flex flex-col gap-2">
+        <div className="st-feed-list">
           {session.feed.length === 0 ? (
             <div className="flex flex-col gap-2">
-              <p className="text-sm text-slate-500">No tutor messages yet.</p>
+              <p className="st-subtitle">No tutor messages yet.</p>
               <button
-                className="w-fit cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                className="st-button st-button--primary w-fit"
                 type="button"
                 onClick={() => onStartLesson?.()}
                 disabled={isBusy}
@@ -61,49 +78,103 @@ export function MainFeed(props: MainFeedProps) {
             </div>
           ) : (
             session.feed.map((message) => (
-              <article key={message.id} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+              <article
+                key={message.id}
+                className={
+                  message.role === "user"
+                    ? `st-feed-card st-feed-card--user${message.id === latestActionableMessageId ? " st-feed-card--current" : ""}`
+                    : message.role === "tutor"
+                      ? `st-feed-card st-feed-card--tutor${message.id === latestActionableMessageId ? " st-feed-card--current" : ""}`
+                      : `st-feed-card st-feed-card--system${message.id === latestActionableMessageId ? " st-feed-card--current" : ""}`
+                }
+              >
                 <header className="flex items-center justify-between gap-2">
-                  <strong>{message.kind}</strong>
-                  <small className="text-xs text-slate-600">{message.topic}</small>
+                  <div className="flex items-center gap-2">
+                    <strong className="uppercase tracking-wide text-sm">{message.kind}</strong>
+                    <span
+                      className={
+                        message.role === "user"
+                          ? "st-role-chip st-role-chip--user"
+                          : message.role === "tutor"
+                            ? "st-role-chip st-role-chip--tutor"
+                            : "st-role-chip st-role-chip--system"
+                      }
+                    >
+                      {message.role === "user" ? "User" : message.role === "tutor" ? "Stack Tutor" : "System"}
+                    </span>
+                  </div>
+                  <small className="st-status-chip st-topic-chip">{message.topic}</small>
                 </header>
-                <div className="mt-1 text-sm leading-6 text-slate-900 [&_ol]:mb-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-2 [&_p:last-child]:mb-0 [&_pre]:mb-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-slate-200 [&_pre]:p-2 [&_ul]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_code]:rounded [&_code]:bg-slate-200 [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs">
-                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+                <div className="st-markdown">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm, remarkBreaks]}
+                    components={{
+                      pre({ children }) {
+                        const codeBlock = Array.isArray(children) ? children[0] : children;
+                        const codeElement = codeBlock as { props?: { children?: React.ReactNode } } | null;
+                        const codeText = typeof codeElement?.props?.children === "string"
+                          ? codeElement.props.children
+                          : Array.isArray(codeElement?.props?.children)
+                            ? codeElement?.props?.children.join("")
+                            : "";
+                        const codeId = `${message.id}:${codeText.slice(0, 32)}`;
+
+                        return (
+                          <div className="st-code-shell">
+                            <button
+                              className="st-code-copy"
+                              type="button"
+                              onClick={() => void copyCode(codeText, codeId)}
+                              disabled={!codeText}
+                              aria-label="Copy code block"
+                              title="Copy code block"
+                            >
+                              {copiedCodeId === codeId ? "✓" : "⧉"}
+                            </button>
+                            <pre>{children}</pre>
+                          </div>
+                        );
+                      },
+                    }}
+                  >
                     {message.content}
                   </ReactMarkdown>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <button
-                    className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
-                    type="button"
-                    onClick={() => onProceed?.(message.stepId)}
-                    disabled={isBusy}
-                  >
-                    Proceed
-                  </button>
-                  <button
-                    className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
-                    type="button"
-                    onClick={() => onRetry?.(message.stepId)}
-                    disabled={isBusy}
-                  >
-                    Retry
-                  </button>
-                  <button
-                    className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
-                    type="button"
-                    onClick={() => {
-                      setDoubtTargetMessageId((current) => (current === message.id ? null : message.id));
-                      setDoubtText("");
-                    }}
-                    disabled={isBusy}
-                  >
-                    Doubt
-                  </button>
-                </div>
-                {doubtTargetMessageId === message.id ? (
+                {message.role !== "user" && message.id === latestActionableMessageId ? (
+                  <div className="st-inline-actions">
+                    <button
+                      className="st-button st-button--ghost"
+                      type="button"
+                      onClick={() => onProceed?.(message.stepId)}
+                      disabled={isBusy}
+                    >
+                      Proceed
+                    </button>
+                    <button
+                      className="st-button st-button--ghost"
+                      type="button"
+                      onClick={() => onRetry?.(message.stepId)}
+                      disabled={isBusy}
+                    >
+                      Retry
+                    </button>
+                    <button
+                      className="st-button st-button--ghost"
+                      type="button"
+                      onClick={() => {
+                        setDoubtTargetMessageId((current) => (current === message.id ? null : message.id));
+                        setDoubtText("");
+                      }}
+                      disabled={isBusy}
+                    >
+                      Doubt
+                    </button>
+                  </div>
+                ) : null}
+                {doubtTargetMessageId === message.id && message.role !== "user" && message.id === latestActionableMessageId ? (
                   <div className="mt-2 flex flex-col gap-1.5">
                     <input
-                      className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
+                      className="st-input"
                       placeholder="Ask your doubt"
                       value={doubtText}
                       onChange={(event) => setDoubtText(event.target.value)}
@@ -111,7 +182,7 @@ export function MainFeed(props: MainFeedProps) {
                     />
                     <div className="flex gap-1.5">
                       <button
-                        className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="st-button st-button--primary"
                         type="button"
                         onClick={() => {
                           const normalized = doubtText.trim();
@@ -127,7 +198,7 @@ export function MainFeed(props: MainFeedProps) {
                         Send
                       </button>
                       <button
-                        className="cursor-pointer rounded-lg border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-900"
+                        className="st-button st-button--ghost"
                         type="button"
                         onClick={() => {
                           setDoubtTargetMessageId(null);
@@ -143,13 +214,13 @@ export function MainFeed(props: MainFeedProps) {
             ))
           )}
           {isBusy ? (
-            <div className="flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-800" aria-live="polite">
-              <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-sky-500" aria-hidden="true" />
+            <div className="st-banner" aria-live="polite">
+              <span className="st-banner-dot" aria-hidden="true" />
               <span>{statusMessage ?? "Working..."}</span>
             </div>
           ) : null}
           {error ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div className="st-error">
               {error}
             </div>
           ) : null}
