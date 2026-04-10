@@ -380,6 +380,29 @@ body {
 	margin-top: 0.45rem;
 	font-size: 0.86rem;
 	line-height: 1.62;
+	word-break: break-word;
+}
+
+.st-markdown h1,
+.st-markdown h2,
+.st-markdown h3,
+.st-markdown h4 {
+	margin: 0 0 0.55rem;
+	line-height: 1.35;
+	font-weight: 700;
+}
+
+.st-markdown h1 {
+	font-size: 1.02rem;
+}
+
+.st-markdown h2 {
+	font-size: 0.97rem;
+}
+
+.st-markdown h3,
+.st-markdown h4 {
+	font-size: 0.92rem;
 }
 
 .st-markdown p {
@@ -394,6 +417,50 @@ body {
 .st-markdown ul {
 	margin: 0 0 0.58rem;
 	padding-left: 1.2rem;
+}
+
+.st-markdown li + li {
+	margin-top: 0.22rem;
+}
+
+.st-markdown a {
+	color: #98d2ff;
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
+.st-markdown blockquote {
+	margin: 0.48rem 0;
+	padding: 0.2rem 0.7rem;
+	border-left: 2px solid rgba(155, 206, 255, 0.62);
+	color: #d7e8ff;
+	background: rgba(22, 38, 56, 0.45);
+}
+
+.st-markdown table {
+	width: 100%;
+	border-collapse: collapse;
+	margin: 0.45rem 0;
+	font-size: 0.82rem;
+}
+
+.st-markdown th,
+.st-markdown td {
+	border: 1px solid rgba(255, 255, 255, 0.14);
+	padding: 0.32rem 0.45rem;
+	text-align: left;
+	vertical-align: top;
+}
+
+.st-markdown th {
+	background: rgba(255, 255, 255, 0.06);
+	font-weight: 700;
+}
+
+.st-markdown hr {
+	border: none;
+	border-top: 1px solid rgba(255, 255, 255, 0.16);
+	margin: 0.7rem 0;
 }
 
 .st-markdown pre {

@@ -1,4 +1,4 @@
-import type { LLMClient } from "./LLMClient";
+import type { LLMClient, TeachingTokenUpdate } from "./LLMClient";
 import type { StepItem, TopicItem, TutorMessage } from "../types/domain";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { getLogger } from "../logging/Logger";
@@ -144,6 +144,7 @@ export class LangChainLLMClient implements LLMClient {
     doubt?: string;
     history: TutorMessage[];
     knownTopicsContext: string;
+    onToken?: (update: TeachingTokenUpdate) => void;
   }): Promise<string> {
     logger.info("Completing step", {
       topic: input.topic.name,
@@ -180,17 +181,38 @@ export class LangChainLLMClient implements LLMClient {
       recentHistory,
     ].join("\n\n");
 
+    let fallbackToInvoke = false;
+
     return this.invokeWithRetry<string>({
       attemptBudget: this.retryAttempts.teaching,
-      execute: (attempt) => model.invoke([
-        {
-          role: "system",
-          content: attempt === 1
-            ? systemPrompt
-            : `${systemPrompt}\nYour previous response was empty. Return a concise teaching response now.`,
-        },
-        { role: "user", content: userPrompt },
-      ]),
+      execute: async (attempt) => {
+        const messages: Array<{ role: "system" | "user"; content: string }> = [
+          {
+            role: "system",
+            content: attempt === 1
+              ? systemPrompt
+              : `${systemPrompt}\nYour previous response was empty. Return a concise teaching response now.`,
+          },
+          { role: "user", content: userPrompt },
+        ];
+
+        if (input.onToken && !fallbackToInvoke) {
+          if (attempt > 1) {
+            input.onToken({ chunk: "", content: "" });
+          }
+
+          try {
+            return await this.streamTeachingResponse(model, messages, input.onToken);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Unknown streaming error";
+            logger.warn("Streaming failed for teaching response; falling back to invoke", { attempt, message });
+            fallbackToInvoke = true;
+            input.onToken({ chunk: "", content: "" });
+          }
+        }
+
+        return model.invoke(messages);
+      },
       validate: (value) => {
         const content = this.extractModelText(value);
         return content ? content : null;
@@ -300,9 +322,49 @@ export class LangChainLLMClient implements LLMClient {
       .join("\n");
   }
 
-  private extractModelText(response: unknown): string {
+  private async streamTeachingResponse(
+    model: BaseChatModel,
+    messages: Array<{ role: "system" | "user"; content: string }>,
+    onToken: (update: TeachingTokenUpdate) => void,
+  ): Promise<string> {
+    let aggregated = "";
+    const stream = await model.stream(messages);
+
+    for await (const chunk of stream) {
+      const tokenText = this.extractModelText(chunk, { trim: false });
+      if (!tokenText) {
+        continue;
+      }
+
+      const delta = this.resolveTokenDelta(aggregated, tokenText);
+      if (!delta) {
+        continue;
+      }
+
+      aggregated += delta;
+      onToken({ chunk: delta, content: aggregated });
+    }
+
+    return aggregated;
+  }
+
+  private resolveTokenDelta(existingContent: string, tokenText: string): string {
+    if (!tokenText) {
+      return "";
+    }
+
+    if (tokenText.startsWith(existingContent)) {
+      return tokenText.slice(existingContent.length);
+    }
+
+    return tokenText;
+  }
+
+  private extractModelText(response: unknown, options?: { trim?: boolean }): string {
+    const shouldTrim = options?.trim ?? true;
+
     if (typeof response === "string") {
-      return response.trim();
+      return shouldTrim ? response.trim() : response;
     }
 
     if (!this.isRecord(response)) {
@@ -311,14 +373,14 @@ export class LangChainLLMClient implements LLMClient {
 
     const content = response.content;
     if (typeof content === "string") {
-      return content.trim();
+      return shouldTrim ? content.trim() : content;
     }
 
     if (!Array.isArray(content)) {
       return "";
     }
 
-    return content
+    const joined = content
       .map((block) => {
         if (typeof block === "string") {
           return block;
@@ -328,7 +390,8 @@ export class LangChainLLMClient implements LLMClient {
         }
         return "";
       })
-      .join("\n")
-      .trim();
+      .join("");
+
+    return shouldTrim ? joined.trim() : joined;
   }
 }

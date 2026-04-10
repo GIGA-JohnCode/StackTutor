@@ -2,7 +2,7 @@ import { TutorSession } from "./TutorSession";
 import { getLogger } from "./logging/Logger";
 import { KnowledgeStore } from "./knowledge/KnowledgeStore";
 import type { KnowledgeValidator } from "./knowledge/KnowledgeValidator";
-import type { LLMClient } from "./llm/LLMClient";
+import type { LLMClient, TeachingTokenUpdate } from "./llm/LLMClient";
 import { parseDecompositionSteps, parsePrerequisites } from "./llm/parsers";
 import type {
   PendingPrerequisiteReview,
@@ -226,7 +226,11 @@ export class TutorEngine {
     return parsedSteps;
   }
 
-  async teachCurrentStep(mode: "initial" | "doubt", doubt?: string): Promise<TutorMessage | null> {
+  async teachCurrentStep(
+    mode: "initial" | "doubt",
+    doubt?: string,
+    onToken?: (update: TeachingTokenUpdate) => void,
+  ): Promise<TutorMessage | null> {
     logger.debug("Teaching current step", { mode, hasDoubt: Boolean(doubt?.trim()) });
     const resolved = await this.resolveActiveTeachingTarget();
     if (!resolved) {
@@ -243,6 +247,7 @@ export class TutorEngine {
       doubt,
       history,
       knownTopicsContext: this.knowledgeStore.toLLMContext(),
+      onToken,
     });
 
     const kind = mode === "doubt" ? "doubt" : "lesson";
@@ -259,7 +264,7 @@ export class TutorEngine {
     return message;
   }
 
-  async retryCurrentStep(): Promise<TutorMessage | null> {
+  async retryCurrentStep(onToken?: (update: TeachingTokenUpdate) => void): Promise<TutorMessage | null> {
     logger.info("Retrying current step");
     const resolved = await this.resolveActiveTeachingTarget();
     if (!resolved) {
@@ -274,6 +279,7 @@ export class TutorEngine {
       mode: "initial",
       history: this.session.getSnapshot().feed,
       knownTopicsContext: this.knowledgeStore.toLLMContext(),
+      onToken,
     });
 
     const message = this.createTutorMessage({
@@ -289,7 +295,10 @@ export class TutorEngine {
     return message;
   }
 
-  async askStepDoubt(question: string): Promise<{ user: TutorMessage; tutor: TutorMessage } | null> {
+  async askStepDoubt(
+    question: string,
+    onToken?: (update: TeachingTokenUpdate) => void,
+  ): Promise<{ user: TutorMessage; tutor: TutorMessage } | null> {
     const trimmed = question.trim();
     if (!trimmed) {
       throw new Error("Doubt question cannot be empty");
@@ -317,7 +326,7 @@ export class TutorEngine {
 
     this.session.appendMessage(userMessage);
 
-    const tutorMessage = await this.teachCurrentStep("doubt", trimmed);
+    const tutorMessage = await this.teachCurrentStep("doubt", trimmed, onToken);
     if (!tutorMessage) {
       throw new Error("Failed to produce tutor response for doubt");
     }
