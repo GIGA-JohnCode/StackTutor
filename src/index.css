@@ -292,6 +292,7 @@ body {
 	min-height: 0;
 	margin-top: 0.55rem;
 	overflow: auto;
+	overflow-anchor: none;
 }
 
 .st-feed-slot {
@@ -308,6 +309,7 @@ body {
 	display: flex;
 	flex-direction: column;
 	gap: 0.5rem;
+	overflow-anchor: none;
 }
 
 .st-feed-card {
