@@ -11,6 +11,9 @@ import { LocalSessionRepository } from "../core/persistence/LocalSessionReposito
 import { LocalSettingsRepository } from "../core/persistence/LocalSettingsRepository";
 import type { AppSettings } from "../core/persistence/SettingsRepository";
 import type {
+  TeachingTokenUpdate,
+} from "../core/llm/LLMClient";
+import type {
   PendingPrerequisiteReview,
   SessionListItem,
   StepItem,
@@ -213,10 +216,11 @@ export class TutorAppStore {
     sessionId: string,
     mode: "initial" | "doubt",
     doubt?: string,
+    onToken?: (update: TeachingTokenUpdate) => void,
   ): Promise<{ message: TutorMessage | null; snapshot: TutorSessionSnapshot }> {
     logger.debug("Teaching current step", { sessionId, mode, hasDoubt: Boolean(doubt?.trim()) });
     const engine = this.requireEngine(sessionId);
-    const message = await engine.teachCurrentStep(mode, doubt);
+    const message = await engine.teachCurrentStep(mode, doubt, onToken);
     const snapshot = this.persistEngineSnapshot(engine);
     return { message, snapshot };
   }
@@ -234,10 +238,11 @@ export class TutorAppStore {
 
   async retryCurrentStep(
     sessionId: string,
+    onToken?: (update: TeachingTokenUpdate) => void,
   ): Promise<{ message: TutorMessage | null; snapshot: TutorSessionSnapshot }> {
     logger.info("Retrying current step", { sessionId });
     const engine = this.requireEngine(sessionId);
-    const message = await engine.retryCurrentStep();
+    const message = await engine.retryCurrentStep(onToken);
     const snapshot = this.persistEngineSnapshot(engine);
     return { message, snapshot };
   }
@@ -245,10 +250,11 @@ export class TutorAppStore {
   async askStepDoubt(
     sessionId: string,
     question: string,
+    onToken?: (update: TeachingTokenUpdate) => void,
   ): Promise<{ messages: { user: TutorMessage; tutor: TutorMessage } | null; snapshot: TutorSessionSnapshot }> {
     logger.info("Submitting step doubt", { sessionId, questionLength: question.trim().length });
     const engine = this.requireEngine(sessionId);
-    const messages = await engine.askStepDoubt(question);
+    const messages = await engine.askStepDoubt(question, onToken);
     const snapshot = this.persistEngineSnapshot(engine);
     return { messages, snapshot };
   }

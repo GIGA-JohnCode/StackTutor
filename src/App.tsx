@@ -11,6 +11,13 @@ import { TutorAppStore } from "./store/TutorAppStore";
 
 const logger = getLogger("App");
 
+interface StreamingReplyState {
+  kind: "lesson" | "doubt" | "retry";
+  topic: string;
+  stepId?: string;
+  content: string;
+}
+
 function App() {
   const appStore = useMemo(() => new TutorAppStore(), []);
   const providerOptions = useMemo(() => appStore.getAvailableProviders(), [appStore]);
@@ -28,6 +35,7 @@ function App() {
   const [feedError, setFeedError] = useState<string | null>(null);
   const [operationStatus, setOperationStatus] = useState<string | null>(null);
   const [pendingSelectionByReview, setPendingSelectionByReview] = useState<Record<string, boolean[]>>({});
+  const [streamingReply, setStreamingReply] = useState<StreamingReplyState | null>(null);
   const operationInFlightRef = useRef(false);
 
   const isBusy = operationStatus !== null;
@@ -42,6 +50,59 @@ function App() {
     return pendingSelectionByReview[pendingReviewKey] ?? pendingReview.suggested.map(() => true);
   }, [pendingReview, pendingReviewKey, pendingSelectionByReview]);
   const layoutClassName = isStartView ? "st-shell st-shell--start" : "st-shell st-shell--session";
+
+  const clearStreamingReply = () => {
+    setStreamingReply(null);
+  };
+
+  const resolveTeachingTarget = (snapshot: TutorSessionSnapshot | null): { topic: string; stepId: string } | null => {
+    if (!snapshot) {
+      return null;
+    }
+
+    const top = snapshot.stack[snapshot.stack.length - 1];
+    if (!top) {
+      return null;
+    }
+
+    const step = top.steps[top.activeStepIndex];
+    if (!step) {
+      return null;
+    }
+
+    return {
+      topic: top.topic.name,
+      stepId: step.id,
+    };
+  };
+
+  const beginStreamingReply = (kind: StreamingReplyState["kind"], snapshot: TutorSessionSnapshot | null) => {
+    const target = resolveTeachingTarget(snapshot);
+    if (!target) {
+      clearStreamingReply();
+      return;
+    }
+
+    setStreamingReply({
+      kind,
+      topic: target.topic,
+      stepId: target.stepId,
+      content: "",
+    });
+  };
+
+  const onStreamingToken = (content: string) => {
+    setStreamingReply((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        content,
+      };
+    });
+  };
 
   useEffect(() => {
     logger.info("App state snapshot", {
@@ -64,6 +125,7 @@ function App() {
       setIsStartView(false);
       setStartError(null);
       setFeedError(null);
+      clearStreamingReply();
       logger.info("Session selected", { sessionId, stackSize: snapshot.stack.length });
     } catch (error) {
       logger.error("Failed to select session", { sessionId, error });
@@ -75,6 +137,7 @@ function App() {
     logger.info("Opening new session view");
     setIsStartView(true);
     setFeedError(null);
+    clearStreamingReply();
   };
 
   const startSession = (
@@ -97,6 +160,7 @@ function App() {
       setIsStartView(false);
       setStartError(null);
       setFeedError(null);
+      clearStreamingReply();
       refreshSessions();
       logger.info("Session started", { sessionId: snapshot.id, title: snapshot.title });
     } catch (error) {
@@ -147,7 +211,13 @@ function App() {
     snapshot = decomposition.snapshot;
 
     onProgress?.("Generating lesson...");
-    const lesson = await appStore.teachCurrentStep(sessionId, "initial");
+    beginStreamingReply("lesson", snapshot);
+    const lesson = await appStore.teachCurrentStep(
+      sessionId,
+      "initial",
+      undefined,
+      (update) => onStreamingToken(update.content),
+    );
     onProgress?.("Finalizing update...");
     logger.debug("Lesson cycle completed", {
       sessionId,
@@ -181,6 +251,7 @@ function App() {
     try {
       setFeedError(null);
       setOperationStatus(initialStatus);
+      clearStreamingReply();
       const snapshot = await operation(sessionId, setOperationStatus);
       setActiveSession(snapshot);
       refreshSessions();
@@ -191,6 +262,7 @@ function App() {
     } finally {
       operationInFlightRef.current = false;
       setOperationStatus(null);
+      clearStreamingReply();
     }
   };
 
@@ -217,7 +289,8 @@ function App() {
     logger.info("Retry requested", { sessionId: activeSessionId });
     void withActiveSession("Regenerating current lesson...", async (sessionId, onProgress) => {
       onProgress("Generating lesson...");
-      const result = await appStore.retryCurrentStep(sessionId);
+      beginStreamingReply("retry", activeSession);
+      const result = await appStore.retryCurrentStep(sessionId, (update) => onStreamingToken(update.content));
       return result.snapshot;
     });
   };
@@ -226,7 +299,8 @@ function App() {
     logger.info("Doubt requested", { sessionId: activeSessionId, questionLength: question.trim().length });
     void withActiveSession("Sending your doubt...", async (sessionId, onProgress) => {
       onProgress("Generating clarification...");
-      const result = await appStore.askStepDoubt(sessionId, question);
+      beginStreamingReply("doubt", activeSession);
+      const result = await appStore.askStepDoubt(sessionId, question, (update) => onStreamingToken(update.content));
       return result.snapshot;
     });
   };
@@ -265,18 +339,37 @@ function App() {
       return;
     }
 
+    const sessionId = activeSessionId;
+    if (!sessionId) {
+      return;
+    }
+
     const accepted = pendingReview.suggested.filter((_, index) => pendingSelection[index]);
     logger.info("Accepting pending prerequisites", {
-      sessionId: activeSessionId,
+      sessionId,
       parentTopicId: pendingReview.parentTopicId,
       acceptedCount: accepted.length,
       suggestedCount: pendingReview.suggested.length,
     });
-    void withActiveSession("Applying prerequisite choices...", async (sessionId, onProgress) => {
-      appStore.acceptPendingPrerequisites(sessionId, pendingReview.parentTopicId, accepted);
-      onProgress("Generating next lesson...");
-      return runLessonCycle(sessionId, onProgress);
-    });
+
+    try {
+      const snapshot = appStore.acceptPendingPrerequisites(sessionId, pendingReview.parentTopicId, accepted);
+      setActiveSession(snapshot);
+      refreshSessions();
+      setPendingSelectionByReview((current) => {
+        const next = { ...current };
+        if (pendingReviewKey) {
+          delete next[pendingReviewKey];
+        }
+        return next;
+      });
+    } catch (error) {
+      logger.error("Failed to accept pending prerequisites", { sessionId, error });
+      setFeedError(error instanceof Error ? error.message : "Unable to apply prerequisite choices");
+      return;
+    }
+
+    void withActiveSession("Generating next lesson...", async (nextSessionId, onProgress) => runLessonCycle(nextSessionId, onProgress));
   };
 
   const onDismissPendingSuggestions = () => {
@@ -284,15 +377,34 @@ function App() {
       return;
     }
 
+    const sessionId = activeSessionId;
+    if (!sessionId) {
+      return;
+    }
+
     logger.info("Dismissing pending prerequisites", {
-      sessionId: activeSessionId,
+      sessionId,
       parentTopicId: pendingReview.parentTopicId,
     });
-    void withActiveSession("Skipping prerequisite suggestions...", async (sessionId, onProgress) => {
-      appStore.dismissPendingPrerequisites(sessionId, pendingReview.parentTopicId);
-      onProgress("Generating next lesson...");
-      return runLessonCycle(sessionId, onProgress);
-    });
+
+    try {
+      const snapshot = appStore.dismissPendingPrerequisites(sessionId, pendingReview.parentTopicId);
+      setActiveSession(snapshot);
+      refreshSessions();
+      setPendingSelectionByReview((current) => {
+        const next = { ...current };
+        if (pendingReviewKey) {
+          delete next[pendingReviewKey];
+        }
+        return next;
+      });
+    } catch (error) {
+      logger.error("Failed to dismiss pending prerequisites", { sessionId, error });
+      setFeedError(error instanceof Error ? error.message : "Unable to dismiss prerequisite suggestions");
+      return;
+    }
+
+    void withActiveSession("Generating next lesson...", async (nextSessionId, onProgress) => runLessonCycle(nextSessionId, onProgress));
   };
 
   const onDeleteSession = (sessionId: string) => {
@@ -385,6 +497,7 @@ function App() {
             error={feedError}
             isBusy={isBusy}
             statusMessage={operationStatus}
+            streamingReply={streamingReply}
             onStartLesson={onStartLesson}
             onProceed={onProceed}
             onRetry={onRetry}

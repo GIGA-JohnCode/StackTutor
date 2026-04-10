@@ -1,6 +1,11 @@
 import type { StepItem, TopicItem, TutorMessage } from "../types/domain";
 import type { DecomposeOutput, PrerequisiteOutput } from "./schemas";
 
+export interface TeachingTokenUpdate {
+  chunk: string;
+  content: string;
+}
+
 // Tutor-operation contract used by the engine.
 // Implementations may use LangChain and any registered model provider internally.
 export interface LLMClient {
@@ -8,6 +13,7 @@ export interface LLMClient {
     topic: TopicItem;
     maxItems: number;
     knownTopicsContext: string;
+    currentSessionStackTopicsContext: string;
   }): Promise<PrerequisiteOutput>;
 
   decomposeTopic(input: {
@@ -24,5 +30,6 @@ export interface LLMClient {
     doubt?: string;
     history: TutorMessage[];
     knownTopicsContext: string;
+    onToken?: (update: TeachingTokenUpdate) => void;
   }): Promise<string>;
 }
