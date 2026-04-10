@@ -51,7 +51,7 @@ export function MainFeed(props: MainFeedProps) {
     }
 
     feedContainerRef.current.scrollTop = feedContainerRef.current.scrollHeight;
-  }, [session?.feed.length, error, isBusy, statusMessage]);
+  }, [session, session?.feed.length, error, isBusy, statusMessage]);
 
   const latestActionableMessageId = session
     ? [...session.feed].reverse().find((item) => item.role !== "user")?.id ?? null

@@ -31,23 +31,27 @@ export class LangChainLLMClient implements LLMClient {
     topic: TopicItem;
     maxItems: number;
     knownTopicsContext: string;
+    currentSessionStackTopicsContext: string;
   }): Promise<PrerequisiteOutput> {
     logger.info("Generating prerequisites", {
       topic: input.topic.name,
       maxItems: input.maxItems,
       knownTopicsContextLength: input.knownTopicsContext.length,
+      currentSessionStackTopicsContextLength: input.currentSessionStackTopicsContext.length,
     });
     const model = this.getTaskModel("prerequisite");
     const maxItems = this.normalizeMaxItems(input.maxItems);
 
     const systemPrompt = [
-      "You generate immediate prerequisites for learning topics.",
+      "You generate immediate independent prerequisites for learning topics.",
       "The provided topic proficiency is the target end-state the learner wants to reach.",
       "Use topic context to keep the scope specific to the target application area.",
       "Each prerequisite must include a context field that explains what this prerequisite means in relation to the target topic, including what it relates to and what it does not cover.",
       "Return only independent, immediate prerequisites and avoid deep or redundant chains.",
       `Return at most ${String(maxItems)} prerequisites.`,
       "Use the known-topics context to avoid suggesting topics the user already knows.",
+      "You are also given current session stack topics that are already queued for teaching.",
+      "Never suggest a prerequisite whose topic name appears in current session stack topics (case-insensitive comparison).",
     ].join("\n");
 
     const userPrompt = [
@@ -56,6 +60,8 @@ export class LangChainLLMClient implements LLMClient {
       `Target topic context: ${input.topic.context}`,
       "Known topics context:",
       input.knownTopicsContext,
+      "Current session stack topics:",
+      input.currentSessionStackTopicsContext,
       "Output prerequisites only.",
     ].join("\n\n");
 

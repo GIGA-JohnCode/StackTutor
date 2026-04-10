@@ -50,7 +50,7 @@ export function RightSidebar(props: RightSidebarProps) {
                 <div key={item.id} className="st-topic-card">
                   <div className="flex justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="break-words font-semibold text-sm leading-tight">{item.topic.name}</div>
+                      <div className="wrap-break-word font-semibold text-sm leading-tight">{item.topic.name}</div>
                       <small className="st-subtitle">Depth {item.depth}</small>
                     </div>
                     <div className="flex shrink-0 flex-nowrap gap-1">

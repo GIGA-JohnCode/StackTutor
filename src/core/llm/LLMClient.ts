@@ -8,6 +8,7 @@ export interface LLMClient {
     topic: TopicItem;
     maxItems: number;
     knownTopicsContext: string;
+    currentSessionStackTopicsContext: string;
   }): Promise<PrerequisiteOutput>;
 
   decomposeTopic(input: {

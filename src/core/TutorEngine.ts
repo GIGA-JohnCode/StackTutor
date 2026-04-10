@@ -94,6 +94,7 @@ export class TutorEngine {
       topic: top.topic,
       maxItems: maxPrereqs,
       knownTopicsContext: this.knowledgeStore.toLLMContext(),
+      currentSessionStackTopicsContext: this.buildCurrentSessionStackTopicsContext(),
     });
 
     const generated = parsePrerequisites(rawOutput, {
@@ -476,5 +477,36 @@ export class TutorEngine {
 
   private buildRootTopicContext(topic: string): string {
     return `Learning scope focused on ${topic} and its direct practical usage.`;
+  }
+
+  private buildCurrentSessionStackTopicsContext(): string {
+    const stack = this.session.getSnapshot().stack;
+    if (stack.length === 0) {
+      return "No current stack topics.";
+    }
+
+    const seen = new Set<string>();
+    const uniqueTopics: string[] = [];
+
+    for (const item of stack) {
+      const normalized = item.topic.name.trim().replace(/\s+/g, " ");
+      if (!normalized) {
+        continue;
+      }
+
+      const lowered = normalized.toLowerCase();
+      if (seen.has(lowered)) {
+        continue;
+      }
+
+      seen.add(lowered);
+      uniqueTopics.push(normalized);
+    }
+
+    if (uniqueTopics.length === 0) {
+      return "No current stack topics.";
+    }
+
+    return uniqueTopics.map((name) => `- ${name}`).join("\n");
   }
 }
