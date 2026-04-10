@@ -265,18 +265,37 @@ function App() {
       return;
     }
 
+    const sessionId = activeSessionId;
+    if (!sessionId) {
+      return;
+    }
+
     const accepted = pendingReview.suggested.filter((_, index) => pendingSelection[index]);
     logger.info("Accepting pending prerequisites", {
-      sessionId: activeSessionId,
+      sessionId,
       parentTopicId: pendingReview.parentTopicId,
       acceptedCount: accepted.length,
       suggestedCount: pendingReview.suggested.length,
     });
-    void withActiveSession("Applying prerequisite choices...", async (sessionId, onProgress) => {
-      appStore.acceptPendingPrerequisites(sessionId, pendingReview.parentTopicId, accepted);
-      onProgress("Generating next lesson...");
-      return runLessonCycle(sessionId, onProgress);
-    });
+
+    try {
+      const snapshot = appStore.acceptPendingPrerequisites(sessionId, pendingReview.parentTopicId, accepted);
+      setActiveSession(snapshot);
+      refreshSessions();
+      setPendingSelectionByReview((current) => {
+        const next = { ...current };
+        if (pendingReviewKey) {
+          delete next[pendingReviewKey];
+        }
+        return next;
+      });
+    } catch (error) {
+      logger.error("Failed to accept pending prerequisites", { sessionId, error });
+      setFeedError(error instanceof Error ? error.message : "Unable to apply prerequisite choices");
+      return;
+    }
+
+    void withActiveSession("Generating next lesson...", async (nextSessionId, onProgress) => runLessonCycle(nextSessionId, onProgress));
   };
 
   const onDismissPendingSuggestions = () => {
@@ -284,15 +303,34 @@ function App() {
       return;
     }
 
+    const sessionId = activeSessionId;
+    if (!sessionId) {
+      return;
+    }
+
     logger.info("Dismissing pending prerequisites", {
-      sessionId: activeSessionId,
+      sessionId,
       parentTopicId: pendingReview.parentTopicId,
     });
-    void withActiveSession("Skipping prerequisite suggestions...", async (sessionId, onProgress) => {
-      appStore.dismissPendingPrerequisites(sessionId, pendingReview.parentTopicId);
-      onProgress("Generating next lesson...");
-      return runLessonCycle(sessionId, onProgress);
-    });
+
+    try {
+      const snapshot = appStore.dismissPendingPrerequisites(sessionId, pendingReview.parentTopicId);
+      setActiveSession(snapshot);
+      refreshSessions();
+      setPendingSelectionByReview((current) => {
+        const next = { ...current };
+        if (pendingReviewKey) {
+          delete next[pendingReviewKey];
+        }
+        return next;
+      });
+    } catch (error) {
+      logger.error("Failed to dismiss pending prerequisites", { sessionId, error });
+      setFeedError(error instanceof Error ? error.message : "Unable to dismiss prerequisite suggestions");
+      return;
+    }
+
+    void withActiveSession("Generating next lesson...", async (nextSessionId, onProgress) => runLessonCycle(nextSessionId, onProgress));
   };
 
   const onDeleteSession = (sessionId: string) => {
