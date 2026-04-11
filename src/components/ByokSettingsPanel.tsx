@@ -84,9 +84,7 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
   };
   const keyPlaceholder = keyPlaceholderByProvider[providerName] ?? "api-key";
 
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  const saveSettings = () => {
     const normalizedProviderSettings = Object.entries(providerSettings).reduce<ProviderSettingsMap>((acc, [provider, config]) => {
       const normalizedProvider = provider.trim().toLowerCase();
       if (!normalizedProvider) {
@@ -131,11 +129,13 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
     <section className="st-panel st-enter flex flex-col gap-2 p-3">
       {showHeader ? <h2 className="st-title">BYOK Settings</h2> : null}
       {showHeader ? <p className="st-subtitle">Configure provider credentials used by your local browser session.</p> : null}
-      <form onSubmit={onSubmit} className="st-form-grid">
+      <div className="st-form-grid" role="group" aria-label="BYOK settings form">
         <label className="st-label" htmlFor="provider-name-input">Provider</label>
         <select
           className="st-select"
           id="provider-name-input"
+          name="stack-tutor-provider"
+          autoComplete="off"
           value={providerName}
           onChange={(event) => {
             const nextProvider = event.target.value;
@@ -155,6 +155,9 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
         <input
           className="st-input"
           id="model-name-input"
+          name="stack-tutor-model"
+          autoComplete="off"
+          spellCheck={false}
           value={modelName}
           onChange={(event) => {
             const nextValue = event.target.value;
@@ -178,7 +181,12 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
         <input
           className="st-input"
           id="api-key-input"
+          name="stack-tutor-api-key"
           type="password"
+          autoComplete="off"
+          spellCheck={false}
+          data-lpignore="true"
+          data-1p-ignore="true"
           value={apiKey}
           onChange={(event) => {
             const nextValue = event.target.value;
@@ -200,11 +208,12 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
 
         <button
           className="st-button st-button--primary text-center"
-          type="submit"
+          type="button"
+          onClick={saveSettings}
         >
           Save
         </button>
-      </form>
+      </div>
       {saved ? <p className="st-subtitle">Saved to local settings.</p> : null}
     </section>
   );
