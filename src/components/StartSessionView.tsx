@@ -29,60 +29,71 @@ export function StartSessionView(props: StartSessionViewProps) {
   };
 
   return (
-    <section className="st-panel st-enter flex flex-col justify-center gap-2 p-3">
-      <h1 className="st-title text-xl">Start New Session</h1>
-      <p className="st-subtitle">Define your learning target and Stack Tutor will build the path.</p>
-      <form onSubmit={onSubmit} className="st-form-grid max-w-110">
-        <label className="st-label" htmlFor="topic-input">What do you want to learn?</label>
-        <input
-          className="st-input"
-          id="topic-input"
-          value={topic}
-          onChange={(event) => setTopic(event.target.value)}
-          placeholder="e.g. Dynamic Programming"
-        />
+    <section className="st-start-view st-enter">
+      <div className="st-start-center">
+        <h1 className="st-start-heading">Where should we begin?</h1>
+        <form onSubmit={onSubmit} className="st-start-form">
+          <div className="st-start-topic-row">
+            <input
+              className="st-input st-start-topic-input"
+              id="topic-input"
+              value={topic}
+              onChange={(event) => setTopic(event.target.value)}
+              placeholder="Topic name"
+              aria-label="Topic name"
+            />
 
-        <label className="st-label" htmlFor="depth-input">Max prerequisite depth</label>
-        <select
-          className="st-select"
-          id="depth-input"
-          value={maxDepth}
-          onChange={(event) => setMaxDepth(Number(event.target.value))}
-        >
-          <option value={1}>1</option>
-          <option value={2}>2</option>
-          <option value={3}>3</option>
-        </select>
+            <div className="st-start-inline-controls">
+              <label className="st-start-mini-control" htmlFor="depth-input">
+                <span className="st-start-mini-label">Depth:</span>
+                <select
+                  className="st-start-mini-select"
+                  id="depth-input"
+                  value={maxDepth}
+                  onChange={(event) => setMaxDepth(Number(event.target.value))}
+                  aria-label="Depth"
+                >
+                  <option value={1}>1</option>
+                  <option value={2}>2</option>
+                  <option value={3}>3</option>
+                </select>
+              </label>
 
-        <label className="st-label" htmlFor="root-proficiency-input">Root topic proficiency</label>
-        <select
-          className="st-select"
-          id="root-proficiency-input"
-          value={rootProficiency}
-          onChange={(event) => setRootProficiency(event.target.value as TopicItem["proficiency"])}
-        >
-          <option value="beginner">Beginner</option>
-          <option value="intermediate">Intermediate</option>
-          <option value="advanced">Advanced</option>
-          <option value="expert">Expert</option>
-        </select>
+              <label className="st-start-mini-control" htmlFor="root-proficiency-input">
+                <span className="st-start-mini-label">Level:</span>
+                <select
+                  className="st-start-mini-select"
+                  id="root-proficiency-input"
+                  value={rootProficiency}
+                  onChange={(event) => setRootProficiency(event.target.value as TopicItem["proficiency"])}
+                  aria-label="Proficiency"
+                >
+                  <option value="beginner">Beginner</option>
+                  <option value="intermediate">Intermediate</option>
+                  <option value="advanced">Advanced</option>
+                  <option value="expert">Expert</option>
+                </select>
+              </label>
+            </div>
+          </div>
 
-        <label className="st-label" htmlFor="root-context-input">Optional context</label>
-        <textarea
-          className="st-textarea"
-          id="root-context-input"
-          value={rootContext}
-          onChange={(event) => setRootContext(event.target.value)}
-          placeholder="e.g. I need recommender systems for e-commerce product ranking and personalization."
-        />
+          <textarea
+            className="st-textarea st-start-context-input"
+            id="root-context-input"
+            value={rootContext}
+            onChange={(event) => setRootContext(event.target.value)}
+            placeholder="Add extra context (optional)"
+            aria-label="Optional context"
+          />
 
-        <button
-          className="st-button st-button--primary text-left"
-          type="submit"
-        >
-          Start Session
-        </button>
-      </form>
+          <button
+            className="st-button st-button--primary st-start-submit"
+            type="submit"
+          >
+            Start Session
+          </button>
+        </form>
+      </div>
     </section>
   );
 }

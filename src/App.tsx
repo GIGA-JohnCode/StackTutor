@@ -18,6 +18,22 @@ interface StreamingReplyState {
   content: string;
 }
 
+type ThemeMode = "dark" | "light";
+const THEME_STORAGE_KEY = "stack-tutor-theme";
+
+function resolveInitialThemeMode(): ThemeMode {
+  if (typeof window === "undefined") {
+    return "dark";
+  }
+
+  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored === "light" || stored === "dark") {
+    return stored;
+  }
+
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
 function App() {
   const appStore = useMemo(() => new TutorAppStore(), []);
   const providerOptions = useMemo(() => appStore.getAvailableProviders(), [appStore]);
@@ -36,6 +52,9 @@ function App() {
   const [operationStatus, setOperationStatus] = useState<string | null>(null);
   const [pendingSelectionByReview, setPendingSelectionByReview] = useState<Record<string, boolean[]>>({});
   const [streamingReply, setStreamingReply] = useState<StreamingReplyState | null>(null);
+  const [isLeftSidebarHidden, setIsLeftSidebarHidden] = useState(false);
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => resolveInitialThemeMode());
+  const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | null>(null);
   const operationInFlightRef = useRef(false);
 
   const isBusy = operationStatus !== null;
@@ -49,7 +68,24 @@ function App() {
 
     return pendingSelectionByReview[pendingReviewKey] ?? pendingReview.suggested.map(() => true);
   }, [pendingReview, pendingReviewKey, pendingSelectionByReview]);
-  const layoutClassName = isStartView ? "st-shell st-shell--start" : "st-shell st-shell--session";
+  const pendingDeleteSession = useMemo(() => {
+    if (!pendingDeleteSessionId) {
+      return null;
+    }
+
+    return sessions.find((session) => session.id === pendingDeleteSessionId) ?? null;
+  }, [pendingDeleteSessionId, sessions]);
+  const layoutClassName = isStartView
+    ? `st-shell st-shell--start${isLeftSidebarHidden ? " st-shell--start-no-left" : ""}`
+    : `st-shell st-shell--session${isLeftSidebarHidden ? " st-shell--session-no-left" : ""}`;
+
+  const toggleLeftSidebarVisibility = () => {
+    setIsLeftSidebarHidden((current) => !current);
+  };
+
+  const toggleThemeMode = () => {
+    setThemeMode((current) => (current === "dark" ? "light" : "dark"));
+  };
 
   const clearStreamingReply = () => {
     setStreamingReply(null);
@@ -111,6 +147,12 @@ function App() {
       startView: isStartView,
     });
   }, [activeSessionId, isStartView, sessions.length]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("st-theme-light", themeMode === "light");
+    window.localStorage.setItem(THEME_STORAGE_KEY, themeMode);
+  }, [themeMode]);
 
   const refreshSessions = () => {
     setSessions(appStore.getSessionList());
@@ -407,7 +449,7 @@ function App() {
     void withActiveSession("Generating next lesson...", async (nextSessionId, onProgress) => runLessonCycle(nextSessionId, onProgress));
   };
 
-  const onDeleteSession = (sessionId: string) => {
+  const performDeleteSession = (sessionId: string) => {
     logger.info("Deleting session", { sessionId, wasActive: activeSessionId === sessionId });
     try {
       const deletedActive = activeSessionId === sessionId;
@@ -432,63 +474,131 @@ function App() {
     }
   };
 
+  const onDeleteSession = (sessionId: string) => {
+    if (isBusy) {
+      return;
+    }
+
+    setPendingDeleteSessionId(sessionId);
+  };
+
+  const confirmDeleteSession = () => {
+    if (!pendingDeleteSessionId || isBusy) {
+      return;
+    }
+
+    const sessionId = pendingDeleteSessionId;
+    setPendingDeleteSessionId(null);
+    performDeleteSession(sessionId);
+  };
+
   return (
     <div className={layoutClassName}>
-      <LeftSidebar
-        sessions={sessions}
-        activeSessionId={activeSessionId}
-        onSelectSession={selectSession}
-        onDeleteSession={onDeleteSession}
-        onNewSession={onOpenNewSession}
-      />
-
-      {isStartView ? (
-        <main className="st-panel st-main-stage st-enter flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-2">
-            <p className="st-subtitle">Use BYOK settings before starting your first learning session.</p>
+      {isLeftSidebarHidden ? (
+        <div className="st-sidebar-rail st-enter">
+          <button
+            className="st-button st-button--ghost st-sidebar-rail-btn"
+            type="button"
+            onClick={toggleLeftSidebarVisibility}
+            aria-label="Show sessions panel"
+            title="Show sessions panel"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              className="st-sidebar-fill-icon"
+            >
+              <rect x="5" y="6" width="14" height="2" rx="1" />
+              <rect x="5" y="11" width="14" height="2" rx="1" />
+              <rect x="5" y="16" width="14" height="2" rx="1" />
+            </svg>
+          </button>
+          <div className="st-sidebar-rail-footer">
             <button
+              className="st-button st-button--ghost st-icon-btn st-sidebar-footer-btn"
               type="button"
-              className="st-button st-button--ghost st-gear-button"
+              onClick={toggleThemeMode}
+              aria-label={themeMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              title={themeMode === "dark" ? "Light mode" : "Dark mode"}
+            >
+              {themeMode === "dark" ? (
+                <svg
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  className="st-sidebar-footer-icon"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="4" />
+                  <line x1="12" y1="2.5" x2="12" y2="5" />
+                  <line x1="12" y1="19" x2="12" y2="21.5" />
+                  <line x1="2.5" y1="12" x2="5" y2="12" />
+                  <line x1="19" y1="12" x2="21.5" y2="12" />
+                  <line x1="5.3" y1="5.3" x2="7" y2="7" />
+                  <line x1="17" y1="17" x2="18.7" y2="18.7" />
+                  <line x1="17" y1="7" x2="18.7" y2="5.3" />
+                  <line x1="5.3" y1="18.7" x2="7" y2="17" />
+                </svg>
+              ) : (
+                <svg
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  className="st-sidebar-footer-icon"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M21 12.8A8.8 8.8 0 1 1 11.2 3A7 7 0 0 0 21 12.8Z" />
+                </svg>
+              )}
+            </button>
+            <button
+              className="st-button st-button--ghost st-icon-btn st-sidebar-footer-btn"
+              type="button"
               onClick={() => setIsByokOpen(true)}
               aria-label="Open BYOK settings"
-              title="Open BYOK settings"
+              title="BYOK settings"
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true" className="st-gear-icon">
+              <svg
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                className="st-sidebar-fill-icon"
+              >
                 <path d="M12 8.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0-7Zm9 3.5a7.9 7.9 0 0 0-.08-1l2.03-1.58l-1.8-3.12l-2.48.86a8.1 8.1 0 0 0-1.74-1.01l-.38-2.59h-3.6l-.38 2.59a8.1 8.1 0 0 0-1.74 1.01l-2.48-.86l-1.8 3.12L3.08 11a8.8 8.8 0 0 0 0 2l-2.03 1.58l1.8 3.12l2.48-.86c.54.42 1.12.76 1.74 1.01l.38 2.59h3.6l.38-2.59c.62-.25 1.2-.59 1.74-1.01l2.48.86l1.8-3.12L20.92 13c.06-.33.08-.66.08-1Z" />
               </svg>
-              BYOK
             </button>
           </div>
+        </div>
+      ) : null}
 
+      {!isLeftSidebarHidden ? (
+        <LeftSidebar
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          onSelectSession={selectSession}
+          onDeleteSession={onDeleteSession}
+          onNewSession={onOpenNewSession}
+          onToggleVisibility={toggleLeftSidebarVisibility}
+          themeMode={themeMode}
+          onToggleTheme={toggleThemeMode}
+          onOpenByok={() => setIsByokOpen(true)}
+        />
+      ) : null}
+
+      {isStartView ? (
+        <main className="st-panel st-main-stage st-start-stage st-enter">
           <StartSessionView onStartSession={startSession} />
-          {!appStore.isByokConfigured() ? (
-            <p className="st-subtitle">Set your provider API key via the BYOK gear button before starting a session.</p>
-          ) : null}
-          {startError ? <p className="st-error">{startError}</p> : null}
-
-          {isByokOpen ? (
-            <div className="st-modal-backdrop" onClick={() => setIsByokOpen(false)}>
-              <div className="st-modal st-byok-modal" onClick={(event) => event.stopPropagation()}>
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="st-title">BYOK Settings</h3>
-                  <button
-                    type="button"
-                    className="st-button st-button--danger"
-                    onClick={() => setIsByokOpen(false)}
-                    aria-label="Close BYOK settings"
-                  >
-                    ×
-                  </button>
-                </div>
-                <ByokSettingsPanel
-                  initialSettings={settings}
-                  providerOptions={providerOptions}
-                  onSave={saveByokSettings}
-                  showHeader={false}
-                />
-              </div>
-            </div>
-          ) : null}
+          <div className="st-start-notes">
+            {!appStore.isByokConfigured() ? (
+              <p className="st-subtitle">Set your provider API key via the BYOK gear icon in the left sidebar before starting a session.</p>
+            ) : null}
+            {startError ? <p className="st-error">{startError}</p> : null}
+          </div>
         </main>
       ) : (
         <div className="st-feed-slot st-panel">
@@ -564,6 +674,59 @@ function App() {
                 Dismiss All
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {pendingDeleteSessionId ? (
+        <div className="st-modal-backdrop" onClick={() => setPendingDeleteSessionId(null)}>
+          <div className="st-modal st-confirm-modal" onClick={(event) => event.stopPropagation()}>
+            <h3 className="st-title">Delete session?</h3>
+            <p className="st-subtitle mt-2">
+              Are you sure you want to delete {pendingDeleteSession?.title ?? "this session"}? This action cannot be undone.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                className="st-button st-button--danger"
+                type="button"
+                onClick={confirmDeleteSession}
+                disabled={isBusy}
+              >
+                Delete Session
+              </button>
+              <button
+                className="st-button st-button--ghost"
+                type="button"
+                onClick={() => setPendingDeleteSessionId(null)}
+                disabled={isBusy}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isByokOpen ? (
+        <div className="st-modal-backdrop" onClick={() => setIsByokOpen(false)}>
+          <div className="st-modal st-byok-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="st-title">BYOK Settings</h3>
+              <button
+                type="button"
+                className="st-button st-button--danger"
+                onClick={() => setIsByokOpen(false)}
+                aria-label="Close BYOK settings"
+              >
+                ×
+              </button>
+            </div>
+            <ByokSettingsPanel
+              initialSettings={settings}
+              providerOptions={providerOptions}
+              onSave={saveByokSettings}
+              showHeader={false}
+            />
           </div>
         </div>
       ) : null}
