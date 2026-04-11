@@ -53,9 +53,9 @@ export function RightSidebar(props: RightSidebarProps) {
                       <div className="wrap-break-word font-semibold text-sm leading-tight">{item.topic.name}</div>
                       <small className="st-subtitle">Depth {item.depth}</small>
                     </div>
-                    <div className="flex shrink-0 flex-nowrap gap-1">
+                    <div className="st-stack-topic-actions">
                       <button
-                        className="st-button st-button--ghost st-icon-btn"
+                        className="st-button st-icon-btn st-stack-icon-btn"
                         type="button"
                         onClick={() => onMoveItem?.(sourceIndex, sourceIndex - 1)}
                         disabled={isBusy || !canMoveDown}
@@ -65,7 +65,7 @@ export function RightSidebar(props: RightSidebarProps) {
                         ↓
                       </button>
                       <button
-                        className="st-button st-button--ghost st-icon-btn"
+                        className="st-button st-icon-btn st-stack-icon-btn"
                         type="button"
                         onClick={() => onMoveItem?.(sourceIndex, sourceIndex + 1)}
                         disabled={isBusy || !canMoveUp}
@@ -75,7 +75,7 @@ export function RightSidebar(props: RightSidebarProps) {
                         ↑
                       </button>
                       <button
-                        className="st-button st-button--danger st-icon-btn st-icon-btn--danger"
+                        className="st-button st-icon-btn st-stack-icon-btn st-stack-icon-btn--remove"
                         type="button"
                         onClick={() => onRemoveItem?.(item.id)}
                         disabled={isBusy}
@@ -115,7 +115,7 @@ export function RightSidebar(props: RightSidebarProps) {
                                     {step.completed ? <span className="text-emerald-700">Done</span> : null}
                                     {canRemoveStep ? (
                                       <button
-                                        className="st-button st-button--danger st-icon-btn st-icon-btn--danger st-icon-btn--compact"
+                                        className="st-button st-step-remove-btn"
                                         type="button"
                                         onClick={() => onRemoveUpcomingStep?.(item.id, step.id)}
                                         title="Remove step"
