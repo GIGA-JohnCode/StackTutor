@@ -30,6 +30,7 @@ export class TutorAppStore {
   private sessionRepository = new LocalSessionRepository();
   private settingsRepository = new LocalSettingsRepository();
   private knowledgeStore = new KnowledgeStore(new LocalKnowledgeRepository());
+  private keylessProviders = new Set(["ollama"]);
 
   getSessionList(): SessionListItem[] {
     return this.sessionRepository.getSessionList();
@@ -87,6 +88,10 @@ export class TutorAppStore {
 
   isByokConfigured(): boolean {
     const settings = this.settingsRepository.get();
+    if (!this.providerRequiresApiKey(settings.providerName)) {
+      return true;
+    }
+
     return Boolean(settings.apiKey?.trim());
   }
 
@@ -103,7 +108,7 @@ export class TutorAppStore {
       hasRootContext: Boolean(rootContext?.trim()),
     });
     const settings = this.settingsRepository.get();
-    if (!settings.apiKey?.trim()) {
+    if (this.providerRequiresApiKey(settings.providerName) && !settings.apiKey?.trim()) {
       logger.warn("Cannot create new session engine: API key missing");
       throw new Error("Set your provider API key in BYOK settings before starting a session.");
     }
@@ -148,6 +153,10 @@ export class TutorAppStore {
     }
 
     const settings = this.settingsRepository.get();
+    if (this.providerRequiresApiKey(settings.providerName) && !settings.apiKey?.trim()) {
+      throw new Error("Set your provider API key in BYOK settings before continuing this session.");
+    }
+
     const provider = ProviderFactory.getProvider(settings.providerName, {
       apiKey: settings.apiKey,
       modelName: settings.modelName,
@@ -311,5 +320,10 @@ export class TutorAppStore {
     logger.debug("Persisting engine snapshot", { sessionId: snapshot.id });
     this.sessionRepository.upsert(snapshot);
     return snapshot;
+  }
+
+  private providerRequiresApiKey(providerName: string): boolean {
+    const normalized = providerName.trim().toLowerCase();
+    return !this.keylessProviders.has(normalized);
   }
 }

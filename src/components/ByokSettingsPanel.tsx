@@ -67,6 +67,7 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
     groq: "Groq",
     openrouter: "OpenRouter",
     google: "Google",
+    ollama: "Ollama",
   };
   const providerLabel = providerLabelByName[providerName] ?? providerName;
 
@@ -74,6 +75,7 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
     groq: "llama-3.1-8b-instant",
     openrouter: "openrouter/free",
     google: "gemini-3.1-flash-lite-preview",
+    ollama: "llama3.2:3b",
   };
   const modelPlaceholder = modelPlaceholderByProvider[providerName] ?? "model-name";
 
@@ -81,8 +83,19 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
     groq: "gsk_...",
     openrouter: "sk-or-v1-...",
     google: "AIza...",
+    ollama: "http://localhost:11434",
   };
   const keyPlaceholder = keyPlaceholderByProvider[providerName] ?? "api-key";
+
+  const keyLabelByProvider: Record<string, string> = {
+    ollama: "Ollama base URL (optional)",
+  };
+  const keyLabel = keyLabelByProvider[providerName] ?? `${providerLabel} API key`;
+
+  const keyInputTypeByProvider: Record<string, "password" | "text"> = {
+    ollama: "text",
+  };
+  const keyInputType = keyInputTypeByProvider[providerName] ?? "password";
 
   const saveSettings = () => {
     const normalizedProviderSettings = Object.entries(providerSettings).reduce<ProviderSettingsMap>((acc, [provider, config]) => {
@@ -147,7 +160,9 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
           }}
         >
           {normalizedProviderOptions.map((provider) => (
-            <option key={provider} value={provider}>{provider}</option>
+            <option key={provider} value={provider}>
+              {providerLabelByName[provider] ?? provider}
+            </option>
           ))}
         </select>
 
@@ -177,12 +192,12 @@ export function ByokSettingsPanel(props: ByokSettingsPanelProps) {
           placeholder={modelPlaceholder}
         />
 
-        <label className="st-label" htmlFor="api-key-input">{providerLabel} API key</label>
+        <label className="st-label" htmlFor="api-key-input">{keyLabel}</label>
         <input
           className="st-input"
           id="api-key-input"
           name="stack-tutor-api-key"
-          type="password"
+          type={keyInputType}
           autoComplete="off"
           spellCheck={false}
           data-lpignore="true"

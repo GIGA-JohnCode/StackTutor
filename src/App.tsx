@@ -54,6 +54,7 @@ function App() {
   const [streamingReply, setStreamingReply] = useState<StreamingReplyState | null>(null);
   const [isLeftSidebarHidden, setIsLeftSidebarHidden] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => resolveInitialThemeMode());
+  const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | null>(null);
   const operationInFlightRef = useRef(false);
 
   const isBusy = operationStatus !== null;
@@ -67,6 +68,13 @@ function App() {
 
     return pendingSelectionByReview[pendingReviewKey] ?? pendingReview.suggested.map(() => true);
   }, [pendingReview, pendingReviewKey, pendingSelectionByReview]);
+  const pendingDeleteSession = useMemo(() => {
+    if (!pendingDeleteSessionId) {
+      return null;
+    }
+
+    return sessions.find((session) => session.id === pendingDeleteSessionId) ?? null;
+  }, [pendingDeleteSessionId, sessions]);
   const layoutClassName = isStartView
     ? `st-shell st-shell--start${isLeftSidebarHidden ? " st-shell--start-no-left" : ""}`
     : `st-shell st-shell--session${isLeftSidebarHidden ? " st-shell--session-no-left" : ""}`;
@@ -441,7 +449,7 @@ function App() {
     void withActiveSession("Generating next lesson...", async (nextSessionId, onProgress) => runLessonCycle(nextSessionId, onProgress));
   };
 
-  const onDeleteSession = (sessionId: string) => {
+  const performDeleteSession = (sessionId: string) => {
     logger.info("Deleting session", { sessionId, wasActive: activeSessionId === sessionId });
     try {
       const deletedActive = activeSessionId === sessionId;
@@ -464,6 +472,24 @@ function App() {
       logger.error("Failed to delete session", { sessionId, error });
       setFeedError(error instanceof Error ? error.message : "Unable to delete session");
     }
+  };
+
+  const onDeleteSession = (sessionId: string) => {
+    if (isBusy) {
+      return;
+    }
+
+    setPendingDeleteSessionId(sessionId);
+  };
+
+  const confirmDeleteSession = () => {
+    if (!pendingDeleteSessionId || isBusy) {
+      return;
+    }
+
+    const sessionId = pendingDeleteSessionId;
+    setPendingDeleteSessionId(null);
+    performDeleteSession(sessionId);
   };
 
   return (
@@ -565,14 +591,14 @@ function App() {
       ) : null}
 
       {isStartView ? (
-        <main className="st-panel st-main-stage st-enter flex flex-col gap-3">
-          <p className="st-subtitle">Use the left sidebar footer for theme and BYOK settings.</p>
-
+        <main className="st-panel st-main-stage st-start-stage st-enter">
           <StartSessionView onStartSession={startSession} />
-          {!appStore.isByokConfigured() ? (
-            <p className="st-subtitle">Set your provider API key via the BYOK gear icon in the left sidebar before starting a session.</p>
-          ) : null}
-          {startError ? <p className="st-error">{startError}</p> : null}
+          <div className="st-start-notes">
+            {!appStore.isByokConfigured() ? (
+              <p className="st-subtitle">Set your provider API key via the BYOK gear icon in the left sidebar before starting a session.</p>
+            ) : null}
+            {startError ? <p className="st-error">{startError}</p> : null}
+          </div>
         </main>
       ) : (
         <div className="st-feed-slot st-panel">
@@ -646,6 +672,35 @@ function App() {
                 disabled={isBusy}
               >
                 Dismiss All
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {pendingDeleteSessionId ? (
+        <div className="st-modal-backdrop" onClick={() => setPendingDeleteSessionId(null)}>
+          <div className="st-modal st-confirm-modal" onClick={(event) => event.stopPropagation()}>
+            <h3 className="st-title">Delete session?</h3>
+            <p className="st-subtitle mt-2">
+              Are you sure you want to delete {pendingDeleteSession?.title ?? "this session"}? This action cannot be undone.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                className="st-button st-button--danger"
+                type="button"
+                onClick={confirmDeleteSession}
+                disabled={isBusy}
+              >
+                Delete Session
+              </button>
+              <button
+                className="st-button st-button--ghost"
+                type="button"
+                onClick={() => setPendingDeleteSessionId(null)}
+                disabled={isBusy}
+              >
+                Cancel
               </button>
             </div>
           </div>

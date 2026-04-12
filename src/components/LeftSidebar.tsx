@@ -52,7 +52,7 @@ export function LeftSidebar(props: LeftSidebarProps) {
         </button>
       </div>
       <button
-        className="st-button st-button--primary text-left"
+        className="st-button st-button--primary text-left st-new-session-btn"
         type="button"
         onClick={onNewSession}
       >
@@ -64,17 +64,22 @@ export function LeftSidebar(props: LeftSidebarProps) {
         ) : (
           <div className="flex flex-col gap-2">
             {sessions.map((session) => (
-              <div key={session.id} className="st-session-item">
+              <div
+                key={session.id}
+                className={
+                  session.id === activeSessionId
+                    ? "st-session-item st-session-item--active"
+                    : "st-session-item"
+                }
+              >
                 <button
-                  className={
-                    session.id === activeSessionId
-                      ? "st-button st-button--ghost st-session-select st-session-select--active"
-                      : "st-button st-button--ghost st-session-select"
-                  }
+                  className="st-session-select"
                   type="button"
                   onClick={() => onSelectSession(session.id)}
                 >
-                  <span>{session.title}</span>
+                  <span className="st-session-title">{session.title}</span>
+                </button>
+                <div className="st-session-trailing">
                   {session.status === "active" ? (
                     <span
                       className="st-status-light"
@@ -84,16 +89,16 @@ export function LeftSidebar(props: LeftSidebarProps) {
                   ) : (
                     <small className="st-status-chip">{session.status}</small>
                   )}
-                </button>
-                <button
-                  className="st-button st-button--danger text-xs"
-                  type="button"
-                  onClick={() => onDeleteSession?.(session.id)}
-                  aria-label={`Delete session ${session.title}`}
-                  title="Delete session"
-                >
-                  ×
-                </button>
+                  <button
+                    className="st-session-delete"
+                    type="button"
+                    onClick={() => onDeleteSession?.(session.id)}
+                    aria-label={`Delete session ${session.title}`}
+                    title="Delete session"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
             ))}
           </div>
